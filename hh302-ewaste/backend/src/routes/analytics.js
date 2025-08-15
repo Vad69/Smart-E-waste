@@ -1,0 +1,58 @@
+import express from 'express';
+import dayjs from 'dayjs';
+import { db } from '../db.js';
+
+const router = express.Router();
+
+router.get('/summary', (req, res) => {
+	const totalItems = db.prepare('SELECT COUNT(*) as c FROM items').get().c;
+	const totalWeight = db.prepare('SELECT IFNULL(SUM(weight_kg), 0) as w FROM items').get().w;
+	const byStatus = db.prepare('SELECT status, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w FROM items GROUP BY status').all();
+	const byCategory = db.prepare('SELECT category_key, COUNT(*) as c FROM items GROUP BY category_key').all();
+	const hazardousCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE hazardous = 1').get().c;
+	const recyclableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE recyclable = 1').get().c;
+	const reusableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE reusable = 1').get().c;
+
+	// Recovery rate: items picked_up or recycled over total
+	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
+	const recoveryRate = totalWeight > 0 ? pickedUpWeight / totalWeight : 0;
+
+	res.json({ totalItems, totalWeight, byStatus, byCategory, hazardousCount, recyclableCount, reusableCount, recoveryRate });
+});
+
+router.get('/trends', (req, res) => {
+	const rows = db.prepare(`
+		SELECT substr(created_at, 1, 7) as ym, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
+		FROM items
+		GROUP BY ym
+		ORDER BY ym ASC
+	`).all();
+	res.json({ monthly: rows });
+});
+
+router.get('/segments', (req, res) => {
+	const byDept = db.prepare(`
+		SELECT d.name as department, COUNT(i.id) as c, IFNULL(SUM(i.weight_kg),0) as w
+		FROM items i LEFT JOIN departments d ON i.department_id = d.id
+		GROUP BY department
+		ORDER BY c DESC
+	`).all();
+	const byCategory = db.prepare(`
+		SELECT category_key as category, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
+		FROM items
+		GROUP BY category
+		ORDER BY c DESC
+	`).all();
+	res.json({ byDept, byCategory });
+});
+
+router.get('/impact', (req, res) => {
+	// Simple model: 1.5 kg CO2e saved per kg recycled; 0.2 kg hazardous prevented per hazardous kg
+	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
+	const hazardousWeight = db.prepare('SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE hazardous = 1').get().w;
+	const co2eSavedKg = recycledWeight * 1.5;
+	const hazardousPreventedKg = hazardousWeight * 0.2;
+	res.json({ recycledWeight, co2eSavedKg, hazardousPreventedKg });
+});
+
+export default router;

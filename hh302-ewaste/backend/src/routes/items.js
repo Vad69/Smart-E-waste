@@ -1,0 +1,167 @@
+import express from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { db, nowIso } from '../db.js';
+import { classifyItem } from '../services/classifier.js';
+import { generateQrSvg } from '../services/qr.js';
+
+const router = express.Router();
+
+function mapItem(row) {
+	if (!row) return null;
+	return {
+		id: row.id,
+		qr_uid: row.qr_uid,
+		name: row.name,
+		description: row.description,
+		category_key: row.category_key,
+		status: row.status,
+		department_id: row.department_id,
+		condition: row.condition,
+		purchase_date: row.purchase_date,
+		weight_kg: row.weight_kg,
+		hazardous: !!row.hazardous,
+		recyclable: !!row.recyclable,
+		reusable: !!row.reusable,
+		serial_number: row.serial_number,
+		asset_tag: row.asset_tag,
+		reported_by: row.reported_by,
+		created_at: row.created_at,
+		updated_at: row.updated_at
+	};
+}
+
+router.get('/', (req, res) => {
+	const { q = '', status, department_id, category_key, page = 1, limit = 50 } = req.query;
+	const filters = [];
+	const params = [];
+	if (q) {
+		filters.push('(name LIKE ? OR description LIKE ? OR serial_number LIKE ? OR asset_tag LIKE ?)');
+		params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+	}
+	if (status) { filters.push('status = ?'); params.push(status); }
+	if (department_id) { filters.push('department_id = ?'); params.push(department_id); }
+	if (category_key) { filters.push('category_key = ?'); params.push(category_key); }
+
+	const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+	const total = db.prepare(`SELECT COUNT(*) as c FROM items ${where}`).get(...params).c;
+	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
+	res.json({ total, page: Number(page), limit: Number(limit), items: rows.map(mapItem) });
+});
+
+router.post('/', (req, res) => {
+	const now = nowIso();
+	const {
+		name,
+		description = '',
+		department_id = null,
+		condition = '',
+		purchase_date = null,
+		weight_kg = 0,
+		serial_number = null,
+		asset_tag = null,
+		reported_by = null
+	} = req.body || {};
+
+	if (!name) return res.status(400).json({ error: 'name is required' });
+
+	const qr_uid = uuidv4();
+	const classification = classifyItem({ name, description, condition, weight_kg });
+	const insert = db.prepare(`INSERT INTO items (
+		qr_uid, name, description, category_key, status, department_id, condition, purchase_date,
+		weight_kg, hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, created_at, updated_at
+	) VALUES (?, ?, ?, ?, 'reported', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+	const info = insert.run(
+		qr_uid, name, description, classification.category_key, department_id, condition, purchase_date, weight_kg,
+		classification.hazardous, classification.recyclable, classification.reusable, serial_number, asset_tag, reported_by, now, now
+	);
+
+	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+		.run(info.lastInsertRowid, 'reported', 'Item reported and classified', now);
+
+	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
+	res.status(201).json({ item: mapItem(row), recommended_vendor_type: classification.recommended_vendor_type });
+});
+
+router.get('/scan/:qr_uid', (req, res) => {
+	const row = db.prepare('SELECT * FROM items WHERE qr_uid = ?').get(req.params.qr_uid);
+	if (!row) return res.status(404).json({ error: 'Item not found' });
+	res.json({ item: mapItem(row) });
+});
+
+router.get('/:id', (req, res) => {
+	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+	if (!row) return res.status(404).json({ error: 'Item not found' });
+	res.json({ item: mapItem(row) });
+});
+
+router.put('/:id', (req, res) => {
+	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	const now = nowIso();
+	const updates = { ...existing, ...req.body };
+	let classification = null;
+	if (req.body.name || req.body.description || req.body.condition || req.body.weight_kg !== undefined) {
+		classification = classifyItem({ name: updates.name, description: updates.description, condition: updates.condition, weight_kg: updates.weight_kg });
+		updates.category_key = classification.category_key;
+		updates.hazardous = classification.hazardous;
+		updates.recyclable = classification.recyclable;
+		updates.reusable = classification.reusable;
+	}
+
+	db.prepare(`UPDATE items SET
+		name = ?, description = ?, category_key = ?, department_id = ?, condition = ?, purchase_date = ?,
+		weight_kg = ?, hazardous = ?, recyclable = ?, reusable = ?, serial_number = ?, asset_tag = ?, reported_by = ?, updated_at = ?
+		WHERE id = ?
+	`).run(
+		updates.name, updates.description, updates.category_key, updates.department_id, updates.condition, updates.purchase_date,
+		updates.weight_kg, updates.hazardous, updates.recyclable, updates.reusable, updates.serial_number, updates.asset_tag, updates.reported_by, now, req.params.id
+	);
+
+	if (classification) {
+		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+			.run(req.params.id, 'reclassified', `Auto classification updated to ${updates.category_key}`, now);
+	}
+
+	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+	res.json({ item: mapItem(row) });
+});
+
+router.post('/:id/status', (req, res) => {
+	const { status, notes = '' } = req.body || {};
+	if (!status) return res.status(400).json({ error: 'status is required' });
+	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	const now = nowIso();
+	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
+	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+		.run(req.params.id, `status_${status}`, notes, now);
+	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+	res.json({ item: mapItem(row) });
+});
+
+router.get('/:id/events', (req, res) => {
+	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at DESC').all(req.params.id);
+	res.json({ events: rows });
+});
+
+router.post('/:id/events', (req, res) => {
+	const { event_type, notes = '' } = req.body || {};
+	if (!event_type) return res.status(400).json({ error: 'event_type is required' });
+	const now = nowIso();
+	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+		.run(req.params.id, event_type, notes, now);
+	res.status(201).json({ ok: true });
+});
+
+router.get('/:id/qr.svg', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const svg = await generateQrSvg(row.qr_uid, 256);
+		res.type('image/svg+xml').send(svg);
+	} catch (e) {
+		next(e);
+	}
+});
+
+export default router;

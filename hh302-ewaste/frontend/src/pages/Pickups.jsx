@@ -1,0 +1,101 @@
+import React, { useEffect, useState } from 'react';
+
+export default function Pickups() {
+	const [suggested, setSuggested] = useState({ suggested_items: [], vendors: [] });
+	const [vendorType, setVendorType] = useState('recycler');
+	const [selectedVendor, setSelectedVendor] = useState('');
+	const [selectedItems, setSelectedItems] = useState([]);
+	const [date, setDate] = useState('');
+	const [pickups, setPickups] = useState([]);
+
+	function loadSuggest() {
+		fetch(`/api/pickups/suggest?vendor_type=${vendorType}`).then(r => r.json()).then(setSuggested);
+	}
+	function loadPickups() {
+		fetch('/api/pickups').then(r => r.json()).then(d => setPickups(d.pickups));
+	}
+	useEffect(() => { loadSuggest(); }, [vendorType]);
+	useEffect(() => { loadPickups(); }, []);
+
+	function toggleItem(id) {
+		setSelectedItems(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.concat(id));
+	}
+
+	function schedule(e) {
+		e.preventDefault();
+		const payload = { vendor_id: Number(selectedVendor), scheduled_date: date, item_ids: selectedItems };
+		fetch('/api/pickups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); loadPickups(); });
+	}
+
+	return (
+		<div className="grid" style={{ gap: 16 }}>
+			<div className="card">
+				<h3>Schedule Pickup</h3>
+				<form onSubmit={schedule} className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+					<select value={vendorType} onChange={e => setVendorType(e.target.value)}>
+						{['recycler','hazardous','refurbisher'].map(t => <option key={t} value={t}>{t}</option>)}
+					</select>
+					<select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} required>
+						<option value="">Select vendor</option>
+						{suggested.vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+					</select>
+					<input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+					<button className="btn" type="submit" disabled={!selectedVendor || selectedItems.length === 0}>Schedule</button>
+				</form>
+			</div>
+
+			<div className="card">
+				<h3>Suggested Items</h3>
+				<table className="table">
+					<thead>
+						<tr>
+							<th></th>
+							<th>ID</th>
+							<th>Name</th>
+							<th>Category</th>
+							<th>Weight</th>
+						</tr>
+					</thead>
+					<tbody>
+						{suggested.suggested_items.map(i => (
+							<tr key={i.id}>
+								<td><input type="checkbox" checked={selectedItems.includes(i.id)} onChange={() => toggleItem(i.id)} /></td>
+								<td className="mono">{i.id}</td>
+								<td>{i.name}</td>
+								<td>{i.category_key}</td>
+								<td>{i.weight_kg || 0}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+
+			<div className="card">
+				<h3>All Pickups</h3>
+				<table className="table">
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Vendor</th>
+							<th>Date</th>
+							<th>Status</th>
+							<th>Items</th>
+						</tr>
+					</thead>
+					<tbody>
+						{pickups.map(p => (
+							<tr key={p.id}>
+								<td className="mono">{p.id}</td>
+								<td className="mono">{p.vendor_id}</td>
+								<td>{p.scheduled_date?.slice?.(0,10)}</td>
+								<td>{p.status}</td>
+								<td>{p.item_count}</td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	);
+}
