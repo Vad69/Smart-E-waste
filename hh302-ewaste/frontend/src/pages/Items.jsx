@@ -41,6 +41,11 @@ export default function Items() {
 			});
 	}
 
+	function setItemStatus(id, newStatus) {
+		return fetch(`/api/items/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus, notes: 'inline update' }) })
+			.then(r => r.json()).then(() => load());
+	}
+
 	return (
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
@@ -85,6 +90,7 @@ export default function Items() {
 							<th>Category</th>
 							<th>Weight</th>
 							<th>QR</th>
+							<th>Actions</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -97,6 +103,11 @@ export default function Items() {
 								<td>{i.category_key}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
+								<td className="row">
+									<button className="btn" onClick={() => setItemStatus(i.id, 'scheduled')} disabled={i.status !== 'reported'}>Schedule</button>
+									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Picked up</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycled</button>
+								</td>
 							</tr>
 						))}
 					</tbody>
