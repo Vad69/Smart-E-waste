@@ -26,6 +26,8 @@ export default function ItemDetail() {
 			<div className="card">
 				<h3>Item #{item.id}</h3>
 				<div><b>Name:</b> {item.name}</div>
+				<div><b>Description:</b> {item.description || '—'}</div>
+				<div><b>Condition:</b> {item.condition || '—'}</div>
 				<div><b>Status:</b> {item.status}</div>
 				<div><b>Category:</b> {item.category_key}</div>
 				<div><b>Dept:</b> {item.department_id || '—'}</div>

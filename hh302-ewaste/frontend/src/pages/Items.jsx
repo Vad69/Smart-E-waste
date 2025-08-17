@@ -88,6 +88,8 @@ export default function Items() {
 							<th>Dept</th>
 							<th>Status</th>
 							<th>Category</th>
+							<th>Condition</th>
+							<th>Description</th>
 							<th>Weight</th>
 							<th>QR</th>
 							<th>Actions</th>
@@ -101,6 +103,8 @@ export default function Items() {
 								<td>{i.department_id || '—'}</td>
 								<td>{i.status}</td>
 								<td>{i.category_key}</td>
+								<td>{i.condition || '—'}</td>
+								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
 								<td className="row">

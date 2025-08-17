@@ -38,6 +38,8 @@ export default function Scan() {
 					<h3>Item</h3>
 					<div><b>ID:</b> {result.id}</div>
 					<div><b>Name:</b> {result.name}</div>
+					<div><b>Description:</b> {result.description || '—'}</div>
+					<div><b>Condition:</b> {result.condition || '—'}</div>
 					<div><b>Status:</b> {result.status}</div>
 					<div><b>Category:</b> {result.category_key}</div>
 					<div><b>Dept:</b> {result.department_id || '—'}</div>
