@@ -164,4 +164,36 @@ router.get('/:id/qr.svg', async (req, res, next) => {
 	}
 });
 
+router.get('/:id/label.svg', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const qrSvg = await generateQrSvg(row.qr_uid, 200);
+		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+		const now = new Date().toISOString();
+		const label = `<?xml version="1.0" encoding="UTF-8"?>
+			<svg xmlns="http://www.w3.org/2000/svg" width="420" height="260">
+				<rect width="100%" height="100%" fill="#ffffff"/>
+				<svg x="16" y="16" width="200" height="200" viewBox="0 0 200 200">${qrInner}</svg>
+				<g font-family="Arial, Helvetica, sans-serif" fill="#111827">
+					<text x="230" y="36" font-size="16" font-weight="700">${escapeXml(row.name || 'Item')}</text>
+					<text x="230" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x="230" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
+					<text x="230" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x="230" y="114" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x="230" y="132" font-size="12">Created: ${escapeXml(row.created_at)}</text>
+					<text x="230" y="150" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x="16" y="236" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
+				</g>
+			</svg>`;
+		res.type('image/svg+xml').send(label);
+	} catch (e) {
+		next(e);
+	}
+});
+
+function escapeXml(s) {
+	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export default router;
