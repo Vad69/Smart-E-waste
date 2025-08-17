@@ -13,7 +13,6 @@ router.get('/summary', (req, res) => {
 	const recyclableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE recyclable = 1').get().c;
 	const reusableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE reusable = 1').get().c;
 
-	// Recovery rate: items picked_up or recycled over total
 	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
 	const recoveryRate = totalWeight > 0 ? pickedUpWeight / totalWeight : 0;
 
@@ -21,13 +20,29 @@ router.get('/summary', (req, res) => {
 });
 
 router.get('/trends', (req, res) => {
-	const rows = db.prepare(`
-		SELECT substr(created_at, 1, 7) as ym, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
-		FROM items
-		GROUP BY ym
-		ORDER BY ym ASC
-	`).all();
-	res.json({ monthly: rows });
+	const { granularity = 'month', from, to } = req.query;
+	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
+	const toDate = to ? dayjs(to) : dayjs();
+	let rows = [];
+	if (granularity === 'day') {
+		rows = db.prepare(`
+			SELECT substr(created_at, 1, 10) as d, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
+			FROM items
+			WHERE created_at BETWEEN ? AND ?
+			GROUP BY d
+			ORDER BY d ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ daily: rows });
+	} else {
+		rows = db.prepare(`
+			SELECT substr(created_at, 1, 7) as ym, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
+			FROM items
+			WHERE created_at BETWEEN ? AND ?
+			GROUP BY ym
+			ORDER BY ym ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ monthly: rows });
+	}
 });
 
 router.get('/segments', (req, res) => {
@@ -47,7 +62,6 @@ router.get('/segments', (req, res) => {
 });
 
 router.get('/impact', (req, res) => {
-	// Simple model: 1.5 kg CO2e saved per kg recycled; 0.2 kg hazardous prevented per hazardous kg
 	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
 	const hazardousWeight = db.prepare('SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE hazardous = 1').get().w;
 	const co2eSavedKg = recycledWeight * 1.5;

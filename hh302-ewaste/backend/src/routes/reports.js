@@ -23,37 +23,28 @@ router.get('/compliance.pdf', (req, res) => {
 		ORDER BY p.scheduled_date ASC
 	`).all(fromDate.toISOString(), toDate.toISOString());
 
-	// Build item event timelines (reported, scheduled_for_pickup, picked_up, recycled)
-	const itemIdList = items.map(i => i.id);
-	const itemEventsById = new Map();
-	if (itemIdList.length) {
-		const placeholders = itemIdList.map(() => '?').join(',');
-		const evRows = db.prepare(`SELECT item_id, event_type, notes, created_at FROM item_events WHERE item_id IN (${placeholders}) ORDER BY created_at ASC`).all(...itemIdList);
-		for (const ev of evRows) {
-			if (!itemEventsById.has(ev.item_id)) itemEventsById.set(ev.item_id, []);
-			itemEventsById.get(ev.item_id).push(ev);
-		}
-	}
-	function extractTimeline(events = []) {
-		const timeline = { reportedAt: null, scheduledAt: null, pickedUpAt: null, recycledAt: null };
-		for (const ev of events) {
-			if (!timeline.reportedAt && ev.event_type === 'reported') timeline.reportedAt = ev.created_at;
-			if (!timeline.scheduledAt && ev.event_type === 'scheduled_for_pickup') timeline.scheduledAt = ev.created_at;
-			if (!timeline.pickedUpAt && (ev.event_type === 'pickup_completed' || ev.event_type === 'status_picked_up')) timeline.pickedUpAt = ev.created_at;
-			if (!timeline.recycledAt && ev.event_type === 'status_recycled') timeline.recycledAt = ev.created_at;
-		}
-		return timeline;
-	}
-
-	function pickupStatusAt(pickupId, statusEventType) {
-		const row = db.prepare(`
-			SELECT MAX(ie.created_at) as t
-			FROM pickup_items pi
-			JOIN item_events ie ON ie.item_id = pi.item_id
-			WHERE pi.pickup_id = ? AND ie.event_type = ? AND ie.notes LIKE ?
-		`).get(pickupId, statusEventType, `Pickup ${pickupId} %`);
-		return row?.t || null;
-	}
+	// Daily breakdowns
+	const dailyItems = db.prepare(`
+		SELECT substr(created_at,1,10) as d, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
+		FROM items WHERE created_at BETWEEN ? AND ?
+		GROUP BY d ORDER BY d ASC
+	`).all(fromDate.toISOString(), toDate.toISOString());
+	const dailyPicked = db.prepare(`
+		SELECT substr(updated_at,1,10) as d, COUNT(*) as c
+		FROM items WHERE status IN ('picked_up','recycled') AND updated_at BETWEEN ? AND ?
+		GROUP BY d ORDER BY d ASC
+	`).all(fromDate.toISOString(), toDate.toISOString());
+	const dailyRecycled = db.prepare(`
+		SELECT substr(updated_at,1,10) as d, COUNT(*) as c
+		FROM items WHERE status = 'recycled' AND updated_at BETWEEN ? AND ?
+		GROUP BY d ORDER BY d ASC
+	`).all(fromDate.toISOString(), toDate.toISOString());
+	const dailyPickupVendors = db.prepare(`
+		SELECT substr(p.scheduled_date,1,10) as d, v.name as vendor_name, COUNT(*) as c
+		FROM pickups p JOIN vendors v ON v.id = p.vendor_id
+		WHERE p.scheduled_date BETWEEN ? AND ?
+		GROUP BY d, vendor_name ORDER BY d ASC, vendor_name ASC
+	`).all(fromDate.toISOString(), toDate.toISOString());
 
 	res.setHeader('Content-Type', 'application/pdf');
 	res.setHeader('Content-Disposition', `inline; filename="compliance_${fromDate.format('YYYYMMDD')}_${toDate.format('YYYYMMDD')}.pdf"`);
@@ -73,27 +64,43 @@ router.get('/compliance.pdf', (req, res) => {
 	doc.text(`Pickups scheduled: ${pickups.length}`);
 	doc.moveDown(1);
 
-	doc.fontSize(12).text('Items (with timestamps)', { underline: true });
-	items.forEach(i => {
-		const tl = extractTimeline(itemEventsById.get(i.id));
-		doc.fontSize(9).text(`- [${i.status}] ${i.name} (${i.category_key}) | Dept: ${i.department_name || 'N/A'} | Weight: ${i.weight_kg || 0} kg | QR: ${i.qr_uid}`);
-		doc.fontSize(8).text(`   Timeline: reported ${fmt(tl.reportedAt)} -> scheduled ${fmt(tl.scheduledAt)} -> picked_up ${fmt(tl.pickedUpAt)} -> recycled ${fmt(tl.recycledAt)}`);
+	// Daily overview table
+	doc.fontSize(12).text('Daily Overview', { underline: true });
+	dailyItems.forEach(row => {
+		const picked = dailyPicked.find(x => x.d === row.d)?.c || 0;
+		const recycled = dailyRecycled.find(x => x.d === row.d)?.c || 0;
+		doc.fontSize(9).text(`- ${row.d}: reported ${row.c} (weight ${row.w.toFixed(1)} kg), picked_up ${picked}, recycled ${recycled}`);
 	});
-	if (items.length === 0) doc.text('No items');
+	if (dailyItems.length === 0) doc.text('No daily activity');
 	doc.moveDown(1);
 
-	doc.fontSize(12).text('Pickups (with timestamps)', { underline: true });
+	doc.fontSize(12).text('Pickups (with timestamps and vendors)', { underline: true });
 	pickups.forEach(p => {
-		const completedAt = pickupStatusAt(p.id, 'pickup_completed');
-		const cancelledAt = pickupStatusAt(p.id, 'pickup_cancelled');
-		doc.fontSize(9).text(`- Pickup #${p.id} | Vendor: ${p.vendor_name} (${p.vendor_type}) Lic: ${p.vendor_license || 'N/A'} | Scheduled: ${fmt(p.scheduled_date)} | Created: ${fmt(p.created_at)} | Status: ${p.status}`);
+		const completedAt = db.prepare(`
+			SELECT MAX(ie.created_at) as t FROM pickup_items pi
+			JOIN item_events ie ON ie.item_id = pi.item_id
+			WHERE pi.pickup_id = ? AND ie.event_type = 'pickup_completed'
+		`).get(p.id)?.t;
+		const cancelledAt = db.prepare(`
+			SELECT MAX(ie.created_at) as t FROM pickup_items pi
+			JOIN item_events ie ON ie.item_id = pi.item_id
+			WHERE pi.pickup_id = ? AND ie.event_type = 'pickup_cancelled'
+		`).get(p.id)?.t;
+		doc.fontSize(9).text(`- [${p.status}] Pickup #${p.id} | Vendor: ${p.vendor_name} (${p.vendor_type}) Lic: ${p.vendor_license || 'N/A'} | Scheduled: ${fmt(p.scheduled_date)} | Created: ${fmt(p.created_at)}`);
 		if (completedAt) doc.fontSize(8).text(`   Completed at: ${fmt(completedAt)}`);
 		if (cancelledAt) doc.fontSize(8).text(`   Cancelled at: ${fmt(cancelledAt)}`);
 	});
 	if (pickups.length === 0) doc.text('No pickups');
 
 	doc.moveDown(1);
-	doc.fontSize(10).text('Generated to support CPCB and E-Waste (Management) Rules compliance: inventories, pickup traceability (timestamps), and vendor licensing.', { align: 'left' });
+	doc.fontSize(12).text('Daily Pickups by Vendor', { underline: true });
+	dailyPickupVendors.forEach(r => {
+		doc.fontSize(9).text(`- ${r.d}: ${r.vendor_name} → ${r.c} pickup(s)`);
+	});
+	if (dailyPickupVendors.length === 0) doc.text('No vendor pickups in period');
+
+	doc.moveDown(1);
+	doc.fontSize(10).text('Generated to support CPCB and E-Waste (Management) Rules compliance: daily breakdowns, pickup timestamps, vendor attribution.', { align: 'left' });
 
 	doc.end();
 });

@@ -79,10 +79,10 @@ router.get('/suggest', (req, res) => {
 });
 
 router.get('/:id', (req, res) => {
-	const row = db.prepare('SELECT * FROM pickups WHERE id = ?').get(req.params.id);
+	const row = db.prepare('SELECT p.*, v.name as vendor_name FROM pickups p JOIN vendors v ON v.id = p.vendor_id WHERE p.id = ?').get(req.params.id);
 	if (!row) return res.status(404).json({ error: 'Pickup not found' });
 	const items = db.prepare('SELECT i.* FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(req.params.id);
-	res.json({ pickup: mapPickup(row), items });
+	res.json({ pickup: { ...mapPickup(row), vendor_name: row.vendor_name }, items });
 });
 
 router.post('/:id/status', (req, res) => {

@@ -4,15 +4,16 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 export default function Dashboard() {
 	const [summary, setSummary] = useState(null);
 	const [trends, setTrends] = useState([]);
+	const [granularity, setGranularity] = useState('month');
 	const [segments, setSegments] = useState({ byDept: [], byCategory: [] });
 	const [impact, setImpact] = useState(null);
 
 	useEffect(() => {
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
-		fetch('/api/analytics/trends').then(r => r.json()).then(d => setTrends(d.monthly));
+		fetch(`/api/analytics/trends?granularity=${granularity}`).then(r => r.json()).then(d => setTrends(d.daily || d.monthly || []));
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
-	}, []);
+	}, [granularity]);
 
 	return (
 		<div className="grid">
@@ -31,12 +32,22 @@ export default function Dashboard() {
 				</div>
 			</div>
 
-			<div className="card" style={{ height: 300 }}>
-				<h3>Monthly Trends</h3>
+			<div className="card" style={{ height: 320 }}>
+				<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+					<h3 style={{ margin: 0 }}>{granularity === 'day' ? 'Daily Trends' : 'Monthly Trends'}</h3>
+					<div className="row" style={{ gap: 8 }}>
+						<label className="row" style={{ gap: 6 }}>
+							<input type="radio" name="gran" checked={granularity === 'day'} onChange={() => setGranularity('day')} /> Day
+						</label>
+						<label className="row" style={{ gap: 6 }}>
+							<input type="radio" name="gran" checked={granularity === 'month'} onChange={() => setGranularity('month')} /> Month
+						</label>
+					</div>
+				</div>
 				<ResponsiveContainer width="100%" height="100%">
 					<LineChart data={trends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
 						<CartesianGrid strokeDasharray="3 3" />
-						<XAxis dataKey="ym" />
+						<XAxis dataKey={granularity === 'day' ? 'd' : 'ym'} />
 						<YAxis />
 						<Tooltip />
 						<Legend />
