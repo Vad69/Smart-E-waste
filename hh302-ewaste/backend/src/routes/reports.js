@@ -2,6 +2,7 @@ import express from 'express';
 import PDFDocument from 'pdfkit';
 import dayjs from 'dayjs';
 import { db } from '../db.js';
+import { formatInTz, nowInTz, DEFAULT_TZ } from '../time.js';
 
 const router = express.Router();
 
@@ -23,7 +24,6 @@ router.get('/compliance.pdf', (req, res) => {
 		ORDER BY p.scheduled_date ASC
 	`).all(fromDate.toISOString(), toDate.toISOString());
 
-	// Daily breakdowns
 	const dailyItems = db.prepare(`
 		SELECT substr(created_at,1,10) as d, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
 		FROM items WHERE created_at BETWEEN ? AND ?
@@ -54,7 +54,7 @@ router.get('/compliance.pdf', (req, res) => {
 
 	doc.fontSize(18).text('E-Waste Compliance Report', { align: 'center' });
 	doc.moveDown(0.5);
-	doc.fontSize(10).text(`Period: ${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')} | Generated: ${dayjs().format('YYYY-MM-DD HH:mm')}`, { align: 'center' });
+	doc.fontSize(10).text(`Period: ${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')} | TZ: ${DEFAULT_TZ} | Generated: ${nowInTz()}`, { align: 'center' });
 	doc.moveDown(1);
 
 	const totalWeight = items.reduce((s, i) => s + (i.weight_kg || 0), 0);
@@ -64,7 +64,6 @@ router.get('/compliance.pdf', (req, res) => {
 	doc.text(`Pickups scheduled: ${pickups.length}`);
 	doc.moveDown(1);
 
-	// Daily overview table
 	doc.fontSize(12).text('Daily Overview', { underline: true });
 	dailyItems.forEach(row => {
 		const picked = dailyPicked.find(x => x.d === row.d)?.c || 0;
@@ -86,9 +85,9 @@ router.get('/compliance.pdf', (req, res) => {
 			JOIN item_events ie ON ie.item_id = pi.item_id
 			WHERE pi.pickup_id = ? AND ie.event_type = 'pickup_cancelled'
 		`).get(p.id)?.t;
-		doc.fontSize(9).text(`- [${p.status}] Pickup #${p.id} | Vendor: ${p.vendor_name} (${p.vendor_type}) Lic: ${p.vendor_license || 'N/A'} | Scheduled: ${fmt(p.scheduled_date)} | Created: ${fmt(p.created_at)}`);
-		if (completedAt) doc.fontSize(8).text(`   Completed at: ${fmt(completedAt)}`);
-		if (cancelledAt) doc.fontSize(8).text(`   Cancelled at: ${fmt(cancelledAt)}`);
+		doc.fontSize(9).text(`- [${p.status}] Pickup #${p.id} | Vendor: ${p.vendor_name} (${p.vendor_type}) Lic: ${p.vendor_license || 'N/A'} | Scheduled: ${formatInTz(p.scheduled_date)} | Created: ${formatInTz(p.created_at)}`);
+		if (completedAt) doc.fontSize(8).text(`   Completed at: ${formatInTz(completedAt)}`);
+		if (cancelledAt) doc.fontSize(8).text(`   Cancelled at: ${formatInTz(cancelledAt)}`);
 	});
 	if (pickups.length === 0) doc.text('No pickups');
 
@@ -104,10 +103,5 @@ router.get('/compliance.pdf', (req, res) => {
 
 	doc.end();
 });
-
-function fmt(ts) {
-	if (!ts) return '—';
-	return dayjs(ts).format('YYYY-MM-DD HH:mm');
-}
 
 export default router;
