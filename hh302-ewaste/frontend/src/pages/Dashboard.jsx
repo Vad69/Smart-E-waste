@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, Brush } from 'recharts';
 
 export default function Dashboard() {
 	const [summary, setSummary] = useState(null);
@@ -14,6 +14,8 @@ export default function Dashboard() {
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
 	}, [granularity]);
+
+	const xKey = granularity === 'day' ? 'd' : 'ym';
 
 	return (
 		<div className="grid">
@@ -32,7 +34,7 @@ export default function Dashboard() {
 				</div>
 			</div>
 
-			<div className="card" style={{ height: 320 }}>
+			<div className="card" style={{ height: 380 }}>
 				<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
 					<h3 style={{ margin: 0 }}>{granularity === 'day' ? 'Daily Trends' : 'Monthly Trends'}</h3>
 					<div className="row" style={{ gap: 8 }}>
@@ -45,14 +47,16 @@ export default function Dashboard() {
 					</div>
 				</div>
 				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={trends} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+					<LineChart data={trends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
 						<CartesianGrid strokeDasharray="3 3" />
-						<XAxis dataKey={granularity === 'day' ? 'd' : 'ym'} />
-						<YAxis />
+						<XAxis dataKey={xKey} />
+						<YAxis yAxisId="left" allowDecimals={false} domain={[dataMin => Math.max(0, Math.floor((dataMin || 0) * 0.9)), dataMax => Math.ceil((dataMax || 10) * 1.1)]} />
+						<YAxis yAxisId="right" orientation="right" domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
 						<Tooltip />
 						<Legend />
-						<Line type="monotone" dataKey="c" name="Items" stroke="#2563eb" />
-						<Line type="monotone" dataKey="w" name="Weight (kg)" stroke="#059669" />
+						<Line yAxisId="left" type="monotone" dataKey="c" name="Items" stroke="#2563eb" dot={false} />
+						<Line yAxisId="right" type="monotone" dataKey="w" name="Weight (kg)" stroke="#059669" dot={false} />
+						<Brush dataKey={xKey} height={20} travellerWidth={10} />
 					</LineChart>
 				</ResponsiveContainer>
 			</div>

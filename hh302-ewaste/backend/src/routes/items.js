@@ -44,7 +44,7 @@ router.get('/', (req, res) => {
 
 	const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 	const total = db.prepare(`SELECT COUNT(*) as c FROM items ${where}`).get(...params).c;
-	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
+	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
 	res.json({ total, page: Number(page), limit: Number(limit), items: rows.map(mapItem) });
 });
 
@@ -180,9 +180,11 @@ router.get('/:id/label.svg', async (req, res, next) => {
 					<text x="230" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
 					<text x="230" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
 					<text x="230" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
-					<text x="230" y="114" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x="230" y="132" font-size="12">Created: ${escapeXml(row.created_at)}</text>
-					<text x="230" y="150" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x="230" y="114" font-size="12">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x="230" y="132" font-size="12">Desc: ${escapeXml((row.description || 'N/A').slice(0,40))}</text>
+					<text x="230" y="150" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x="230" y="168" font-size="12">Created: ${escapeXml(row.created_at)}</text>
+					<text x="230" y="186" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
 					<text x="16" y="236" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
 				</g>
 			</svg>`;

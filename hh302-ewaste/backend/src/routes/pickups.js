@@ -16,7 +16,7 @@ function mapPickup(row) {
 }
 
 router.get('/', (req, res) => {
-	const rows = db.prepare('SELECT p.*, v.name as vendor_name FROM pickups p JOIN vendors v ON v.id = p.vendor_id ORDER BY p.scheduled_date DESC').all();
+	const rows = db.prepare('SELECT p.*, v.name as vendor_name FROM pickups p JOIN vendors v ON v.id = p.vendor_id ORDER BY p.id DESC').all();
 	const withCounts = rows.map(p => {
 		const countsRows = db.prepare(`
 			SELECT i.status as status, COUNT(*) as c

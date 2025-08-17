@@ -46,6 +46,9 @@ export default function Items() {
 			.then(r => r.json()).then(() => load());
 	}
 
+	const openItems = useMemo(() => items.filter(i => i.status !== 'recycled'), [items]);
+	const completedItems = useMemo(() => items.filter(i => i.status === 'recycled'), [items]);
+
 	return (
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
@@ -64,6 +67,7 @@ export default function Items() {
 			</div>
 
 			<div className="card">
+				<h3>Open Items</h3>
 				<div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
 					<input className="input" placeholder="Search" value={q} onChange={e => setQ(e.target.value)} />
 					<select value={status} onChange={e => setStatus(e.target.value)}>
@@ -88,31 +92,69 @@ export default function Items() {
 							<th>Dept</th>
 							<th>Status</th>
 							<th>Category</th>
+							<th>Condition</th>
+							<th>Description</th>
 							<th>Weight</th>
 							<th>QR</th>
 							<th>Actions</th>
 						</tr>
 					</thead>
 					<tbody>
-						{items.map(i => (
+						{openItems.map(i => (
 							<tr key={i.id}>
 								<td className="mono"><Link to={`/items/${i.id}`}>{i.id}</Link></td>
 								<td>{i.name}</td>
 								<td>{i.department_id || '—'}</td>
 								<td>{i.status}</td>
 								<td>{i.category_key}</td>
+								<td>{i.condition || '—'}</td>
+								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
 								<td className="row">
-									<button className="btn" onClick={() => setItemStatus(i.id, 'scheduled')} disabled={i.status !== 'reported'}>Schedule</button>
-									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Picked up</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycled</button>
+									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Pick up</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Complete</button>
 								</td>
 							</tr>
 						))}
 					</tbody>
 				</table>
-				<div style={{ marginTop: 8 }}>Total: {total}</div>
+				<div style={{ marginTop: 8 }}>Open total: {openItems.length}</div>
+			</div>
+
+			<div className="card">
+				<h3>Completed Items</h3>
+				<table className="table">
+					<thead>
+						<tr>
+							<th>ID</th>
+							<th>Name</th>
+							<th>Dept</th>
+							<th>Status</th>
+							<th>Category</th>
+							<th>Condition</th>
+							<th>Description</th>
+							<th>Weight</th>
+							<th>QR</th>
+						</tr>
+					</thead>
+					<tbody>
+						{completedItems.map(i => (
+							<tr key={i.id}>
+								<td className="mono"><Link to={`/items/${i.id}`}>{i.id}</Link></td>
+								<td>{i.name}</td>
+								<td>{i.department_id || '—'}</td>
+								<td>{i.status}</td>
+								<td>{i.category_key}</td>
+								<td>{i.condition || '—'}</td>
+								<td>{i.description?.slice?.(0, 50) || '—'}</td>
+								<td>{i.weight_kg || 0}</td>
+								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
+							</tr>
+						))}
+					</tbody>
+				</table>
+				<div style={{ marginTop: 8 }}>Completed total: {completedItems.length}</div>
 			</div>
 		</div>
 	);
