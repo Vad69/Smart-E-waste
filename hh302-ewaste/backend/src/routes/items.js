@@ -44,7 +44,7 @@ router.get('/', (req, res) => {
 
 	const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
 	const total = db.prepare(`SELECT COUNT(*) as c FROM items ${where}`).get(...params).c;
-	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
+	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
 	res.json({ total, page: Number(page), limit: Number(limit), items: rows.map(mapItem) });
 });
 
