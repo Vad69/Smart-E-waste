@@ -87,6 +87,8 @@ export default function Pickups() {
 							<th>Date</th>
 							<th>Status</th>
 							<th>Items</th>
+							<th>Breakdown</th>
+							<th>Last Update</th>
 							<th>Actions</th>
 						</tr>
 					</thead>
@@ -94,10 +96,12 @@ export default function Pickups() {
 						{pickups.map(p => (
 							<tr key={p.id}>
 								<td className="mono">{p.id}</td>
-								<td className="mono">{p.vendor_id}</td>
+								<td>{p.vendor_name || p.vendor_id}</td>
 								<td>{p.scheduled_date?.slice?.(0,10)}</td>
 								<td>{p.status}</td>
 								<td>{p.item_count}</td>
+								<td className="mono">{`rep:${p.counts?.reported||0} sch:${p.counts?.scheduled||0} pick:${p.counts?.picked_up||0} rec:${p.counts?.recycled||0}`}</td>
+								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
 								<td>
 									<button className="btn" onClick={() => updatePickupStatus(p.id, 'completed')} disabled={p.status !== 'scheduled'}>Complete</button>
 									<button className="btn secondary" style={{ marginLeft: 6 }} onClick={() => updatePickupStatus(p.id, 'cancelled')} disabled={p.status !== 'scheduled'}>Cancel</button>

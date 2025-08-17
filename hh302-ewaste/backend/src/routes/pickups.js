@@ -16,10 +16,26 @@ function mapPickup(row) {
 }
 
 router.get('/', (req, res) => {
-	const rows = db.prepare('SELECT * FROM pickups ORDER BY scheduled_date DESC').all();
+	const rows = db.prepare('SELECT p.*, v.name as vendor_name FROM pickups p JOIN vendors v ON v.id = p.vendor_id ORDER BY p.scheduled_date DESC').all();
 	const withCounts = rows.map(p => {
-		const count = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE pickup_id = ?').get(p.id).c;
-		return { ...mapPickup(p), item_count: count };
+		const countsRows = db.prepare(`
+			SELECT i.status as status, COUNT(*) as c
+			FROM items i JOIN pickup_items pi ON i.id = pi.item_id
+			WHERE pi.pickup_id = ?
+			GROUP BY i.status
+		`).all(p.id);
+		const counts = { reported: 0, scheduled: 0, picked_up: 0, recycled: 0 };
+		for (const r of countsRows) {
+			if (counts[r.status] === undefined) counts[r.status] = 0;
+			counts[r.status] += r.c;
+		}
+		const total = Object.values(counts).reduce((a, b) => a + b, 0);
+		const lastUpdate = db.prepare(`
+			SELECT MAX(i.updated_at) as t
+			FROM items i JOIN pickup_items pi ON i.id = pi.item_id
+			WHERE pi.pickup_id = ?
+		`).get(p.id).t;
+		return { ...mapPickup(p), vendor_name: p.vendor_name, item_count: total, counts, last_item_update: lastUpdate };
 	});
 	res.json({ pickups: withCounts });
 });
