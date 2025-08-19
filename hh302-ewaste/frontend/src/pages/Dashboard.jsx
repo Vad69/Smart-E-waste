@@ -90,6 +90,10 @@ export default function Dashboard() {
 					<h3>Impact</h3>
 					<div>CO2e saved: <b>{impact?.co2eSavedKg?.toFixed?.(1) ?? '—'}</b> kg</div>
 					<div>Hazardous prevented: <b>{impact?.hazardousPreventedKg?.toFixed?.(1) ?? '—'}</b> kg</div>
+					<div>Refurbished devices: <b>{impact?.refurbishedCount ?? '—'}</b></div>
+					<div>Reusable potential (reported reusable): <b>{impact?.reusablePotentialCount ?? '—'}</b></div>
+					<div>People impacted (all time): <b>{impact?.impactedUsers ?? '—'}</b></div>
+					<div>People impacted (30 days): <b>{impact?.impactedUsers30d ?? '—'}</b></div>
 				</div>
 			</div>
 		</div>

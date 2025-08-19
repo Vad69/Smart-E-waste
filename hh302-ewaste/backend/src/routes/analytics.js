@@ -66,10 +66,15 @@ router.get('/impact', (req, res) => {
 	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'recycled'").get().w;
 	const refurbishedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'refurbished'").get().w;
 	const disposedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'disposed'").get().w;
+	const refurbishedCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE status = 'refurbished'").get().c;
+	const reusablePotentialCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE category_key = 'reusable'").get().c;
+	const impactedUsers = db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_scores').get().c;
+	const from30 = dayjs().subtract(30, 'day').toISOString();
+	const impactedUsers30d = db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_scores WHERE created_at >= ?').get(from30).c;
 	// Simple model: recycling saves 1.5 kg CO2e/kg; refurbishing saves 3.0 kg CO2e/kg (extends life); safe disposal avoids 0.5 kg hazardous/kg
 	const co2eSavedKg = recycledWeight * 1.5 + refurbishedWeight * 3.0;
 	const hazardousPreventedKg = disposedWeight * 0.5;
-	res.json({ processedWeight, recycledWeight, refurbishedWeight, disposedWeight, co2eSavedKg, hazardousPreventedKg });
+	res.json({ processedWeight, recycledWeight, refurbishedWeight, disposedWeight, refurbishedCount, reusablePotentialCount, impactedUsers, impactedUsers30d, co2eSavedKg, hazardousPreventedKg });
 });
 
 export default router;
