@@ -312,6 +312,7 @@ export default function Campaigns() {
 							<th>User</th>
 							<th>User ID</th>
 							<th>Dept</th>
+							<th>Redeemed</th>
 							<th>Points</th>
 						</tr>
 					</thead>
@@ -321,6 +322,7 @@ export default function Campaigns() {
 								<td>{e.user_name || e.user_id}</td>
 								<td className="mono">{e.user_id}</td>
 								<td className="mono">{e.department_name || '—'}</td>
+								<td className="mono">{e.redeemed_points || 0}</td>
 								<td className="mono">{e.points}</td>
 							</tr>
 						))}

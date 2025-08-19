@@ -39,7 +39,8 @@ router.get('/:id/scores', (req, res) => {
 		SELECT user_id,
 		       MAX(user_name) as user_name,
 		       MAX(department_name) as department_name,
-		       SUM(points) as points
+		       SUM(points) as points,
+		       SUM(CASE WHEN points < 0 THEN -points ELSE 0 END) as redeemed_points
 		FROM user_scores
 		WHERE campaign_id = ?
 		GROUP BY user_id
@@ -70,7 +71,8 @@ router.get('/scoreboard/all', (req, res) => {
 		SELECT user_id,
 		       MAX(user_name) as user_name,
 		       MAX(department_name) as department_name,
-		       SUM(points) as points
+		       SUM(points) as points,
+		       SUM(CASE WHEN points < 0 THEN -points ELSE 0 END) as redeemed_points
 		FROM user_scores
 		GROUP BY user_id
 		ORDER BY points DESC
