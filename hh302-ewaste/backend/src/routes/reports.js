@@ -31,12 +31,12 @@ router.get('/compliance.pdf', (req, res) => {
 	`).all(fromDate.toISOString(), toDate.toISOString());
 	const dailyPicked = db.prepare(`
 		SELECT substr(updated_at,1,10) as d, COUNT(*) as c
-		FROM items WHERE status IN ('picked_up','recycled') AND updated_at BETWEEN ? AND ?
+		FROM items WHERE status IN ('picked_up','recycled','refurbished','disposed') AND updated_at BETWEEN ? AND ?
 		GROUP BY d ORDER BY d ASC
 	`).all(fromDate.toISOString(), toDate.toISOString());
 	const dailyRecycled = db.prepare(`
 		SELECT substr(updated_at,1,10) as d, COUNT(*) as c
-		FROM items WHERE status = 'recycled' AND updated_at BETWEEN ? AND ?
+		FROM items WHERE status IN ('recycled','refurbished','disposed') AND updated_at BETWEEN ? AND ?
 		GROUP BY d ORDER BY d ASC
 	`).all(fromDate.toISOString(), toDate.toISOString());
 	const dailyPickupVendors = db.prepare(`
@@ -67,8 +67,8 @@ router.get('/compliance.pdf', (req, res) => {
 	doc.fontSize(12).text('Daily Overview', { underline: true });
 	dailyItems.forEach(row => {
 		const picked = dailyPicked.find(x => x.d === row.d)?.c || 0;
-		const recycled = dailyRecycled.find(x => x.d === row.d)?.c || 0;
-		doc.fontSize(9).text(`- ${row.d}: reported ${row.c} (weight ${row.w.toFixed(1)} kg), picked_up ${picked}, recycled ${recycled}`);
+		const processed = dailyRecycled.find(x => x.d === row.d)?.c || 0;
+		doc.fontSize(9).text(`- ${row.d}: reported ${row.c} (weight ${row.w.toFixed(1)} kg), picked_up ${picked}, processed (recycled/refurbished/disposed) ${processed}`);
 	});
 	if (dailyItems.length === 0) doc.text('No daily activity');
 	doc.moveDown(1);
