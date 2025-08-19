@@ -1,5 +1,20 @@
 import React, { useEffect, useState } from 'react';
 
+const COLORS = { reported: '#94a3b8', scheduled: '#0ea5e9', picked_up: '#f59e0b', recycled: '#10b981', refurbished: '#8b5cf6', disposed: '#ef4444' };
+
+function BreakdownBar({ counts }) {
+	const total = Object.values(counts || {}).reduce((a, b) => a + (b || 0), 0) || 1;
+	const keys = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	return (
+		<div style={{ display: 'flex', width: 260, height: 12, borderRadius: 6, overflow: 'hidden', border: '1px solid #e5e7eb', background: '#f8fafc' }}>
+			{keys.map(k => {
+				const w = ((counts?.[k] || 0) / total) * 100;
+				return <div key={k} title={`${k}: ${counts?.[k] || 0}`} style={{ width: `${w}%`, background: COLORS[k] }} />;
+			})}
+		</div>
+	);
+}
+
 export default function Pickups() {
 	const [suggested, setSuggested] = useState({ suggested_items: [], vendors: [] });
 	const [vendorType, setVendorType] = useState('recycler');
@@ -100,7 +115,7 @@ export default function Pickups() {
 								<td>{p.scheduled_date?.slice?.(0,10)}</td>
 								<td>{p.status}</td>
 								<td>{p.item_count}</td>
-								<td className="mono">{`rep:${p.counts?.reported||0} sch:${p.counts?.scheduled||0} pick:${p.counts?.picked_up||0} rec:${p.counts?.recycled||0}`}</td>
+								<td><BreakdownBar counts={p.counts} /></td>
 								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
 								<td>
 									<button className="btn" onClick={() => updatePickupStatus(p.id, 'completed')} disabled={p.status !== 'scheduled'}>Complete</button>

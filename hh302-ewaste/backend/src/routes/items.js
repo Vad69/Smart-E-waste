@@ -158,9 +158,35 @@ router.post('/:id/status', (req, res) => {
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 		.run(req.params.id, `status_${status}`, notes, now);
+
+	// Auto-update related pickups
+	updatePickupsForItem(Number(req.params.id), now);
+
 	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	res.json({ item: mapItem(row) });
 });
+
+function updatePickupsForItem(itemId, now) {
+	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(itemId).map(r => r.pickup_id);
+	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
+	for (const pickupId of pickupIds) {
+		const pickup = db.prepare('SELECT * FROM pickups WHERE id = ?').get(pickupId);
+		if (!pickup) continue;
+		const rows = db.prepare('SELECT i.id, i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
+		if (rows.length === 0) continue;
+		const allFinal = rows.every(r => finalStatuses.has(r.status));
+		const newStatus = allFinal ? 'completed' : 'scheduled';
+		if (pickup.status !== newStatus) {
+			db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(newStatus, pickupId);
+			if (newStatus === 'completed') {
+				const insertEvent = db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)');
+				for (const r of rows) {
+					insertEvent.run(r.id, 'pickup_completed', `Pickup ${pickupId} completed`, now);
+				}
+			}
+		}
+	}
+}
 
 router.get('/:id/events', (req, res) => {
 	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at DESC').all(req.params.id);
