@@ -254,10 +254,13 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		if (!row) return res.status(404).send('Not found');
 		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
 		const labelWidth = size + 260;
-		const labelHeight = Math.max(size + 80, 320);
+		const labelHeight = Math.max(size + 120, 360);
 		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+		const ageBase = row.purchase_date || row.created_at;
+		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
+		const weightStr = (row.weight_kg || 0).toString();
 		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
 				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
@@ -268,11 +271,13 @@ router.get('/:id/label.svg', async (req, res, next) => {
 					<text x=\"${textX}\" y=\"78\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
 					<text x=\"${textX}\" y=\"96\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
 					<text x=\"${textX}\" y=\"114\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
-					<text x=\"${textX}\" y=\"150\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Created: ${escapeXml(formatInTz(row.created_at))}</text>
-					<text x=\"${textX}\" y=\"186\" font-size=\"12\">Updated: ${escapeXml(formatInTz(row.updated_at))}</text>
-					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(nowInTz())}</text>
+					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Weight: ${escapeXml(weightStr)} kg</text>
+					<text x=\"${textX}\" y=\"150\" font-size=\"12\">Age: ${escapeXml(ageDays != null ? ageDays + ' days' : 'N/A')}</text>
+					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"186\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"204\" font-size=\"12\">Created: ${escapeXml(row.created_at)}</text>
+					<text x=\"${textX}\" y=\"222\" font-size=\"12\">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(dayjs().format('YYYY-MM-DD HH:mm:ss'))}</text>
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
