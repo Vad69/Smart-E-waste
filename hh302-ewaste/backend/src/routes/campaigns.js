@@ -226,31 +226,34 @@ router.post('/:id/rewards', (req, res) => {
 });
 
 router.post('/rewards/:id/redeem', (req, res) => {
-    const { user_id, user_name = null, department_name = null } = req.body || {};
-    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-    const r = db.prepare('SELECT * FROM rewards WHERE id = ? AND active = 1').get(req.params.id);
-    if (!r) return res.status(404).json({ error: 'reward not found' });
-    if ((r.stock || 0) <= 0) return res.status(400).json({ error: 'out of stock' });
-    const campaignId = r.campaign_id || null;
-    // Check user points balance (per campaign if campaignId set)
-    const balance = campaignId != null
-        ? db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ? AND campaign_id = ?').get(user_id, campaignId).p
-        : db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ?').get(user_id).p;
-    if (balance < r.cost_points) return res.status(400).json({ error: 'insufficient points' });
-    const now = nowIso();
-    // Canonical first name and department
-    const existingName = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.user_name || null;
-    const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
-    const canonicalName = existingName || firstName;
-    const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.department_name || null;
-    const canonicalDept = existingDept || (department_name || null);
-    // Deduct by adding a negative score entry in the same campaign scope
-    db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(user_id, canonicalName, -r.cost_points, campaignId, now, canonicalDept);
-    db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
-    db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
-        .run(req.params.id, user_id, canonicalName, canonicalDept, now);
-    res.json({ ok: true });
+	const { user_id, user_name = null, department_name = null } = req.body || {};
+	if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+	const r = db.prepare('SELECT * FROM rewards WHERE id = ? AND active = 1').get(req.params.id);
+	if (!r) return res.status(404).json({ error: 'reward not found' });
+	if ((r.stock || 0) <= 0) return res.status(400).json({ error: 'out of stock' });
+	// Enforce one redemption per user per reward
+	const already = db.prepare('SELECT 1 as x FROM redemptions WHERE reward_id = ? AND user_id = ? LIMIT 1').get(req.params.id, user_id);
+	if (already) return res.status(400).json({ error: 'gift already redeemed' });
+	const campaignId = r.campaign_id || null;
+	// Check user points balance (per campaign if campaignId set)
+	const balance = campaignId != null
+		? db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ? AND campaign_id = ?').get(user_id, campaignId).p
+		: db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ?').get(user_id).p;
+	if (balance < r.cost_points) return res.status(400).json({ error: 'insufficient points' });
+	const now = nowIso();
+	// Canonical first name and department
+	const existingName = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.user_name || null;
+	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+	const canonicalName = existingName || firstName;
+	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.department_name || null;
+	const canonicalDept = existingDept || (department_name || null);
+	// Deduct by adding a negative score entry in the same campaign scope
+	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+		.run(user_id, canonicalName, -r.cost_points, campaignId, now, canonicalDept);
+	db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
+	db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
+		.run(req.params.id, user_id, canonicalName, canonicalDept, now);
+	res.json({ ok: true });
 });
 
 // Delete a campaign and cascade related data
