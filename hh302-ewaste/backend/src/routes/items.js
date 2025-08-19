@@ -141,6 +141,40 @@ router.get('/:id/events', (req, res) => {
     res.json({ events: rows });
 });
 
+// Update item status with strict workflow and manual timestamp
+router.post('/:id/status', (req, res) => {
+	const id = Number(req.params.id);
+	const allowed = ['picked_up','recycled','refurbished','disposed'];
+	const { status, manual_time, notes = '' } = req.body || {};
+	if (!status || !allowed.includes(status)) return res.status(400).json({ error: 'invalid status' });
+	const at = normalizeLocalTime(manual_time);
+	if (!manual_time || !at) return res.status(400).json({ error: 'manual_time is required (use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm)' });
+	const item = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+	if (!item) return res.status(404).json({ error: 'Item not found' });
+	const link = db.prepare('SELECT pickup_id FROM pickup_items WHERE item_id = ? ORDER BY pickup_id DESC LIMIT 1').get(id);
+	if (status === 'picked_up') {
+		if (item.status !== 'scheduled') return res.status(400).json({ error: 'Item must be scheduled before marking as picked up' });
+		if (!link) return res.status(400).json({ error: 'Item must be part of a pickup to mark picked up' });
+	} else {
+		if (item.status !== 'picked_up') return res.status(400).json({ error: 'Item must be picked up before it can be processed' });
+		if (!link) return res.status(400).json({ error: 'Item must be part of a pickup to update status' });
+	}
+	const eventType = status === 'picked_up' ? 'status_picked_up' :
+		status === 'recycled' ? 'status_recycled' :
+		status === 'refurbished' ? 'status_refurbished' : 'status_disposed';
+	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, id);
+	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)').run(id, eventType, notes || `Status ${status}`, at);
+	if (link) {
+		const pid = link.pickup_id;
+		const rows = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pid);
+		const allTerminal = rows.length > 0 && rows.every(r => ['recycled','refurbished','disposed'].includes(r.status));
+		if (allTerminal) {
+			db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run('completed', pid);
+		}
+	}
+	res.json({ ok: true });
+});
+
 router.get('/:id/pickup-info', (req, res) => {
 	const id = Number(req.params.id);
 	if (!id) return res.status(400).json({ error: 'invalid id' });
