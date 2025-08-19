@@ -265,18 +265,30 @@ export default function Campaigns() {
 				</form>
 				<div style={{ marginTop: 8 }}>
 					{rewards.length === 0 ? <div className="muted">No rewards yet.</div> : (
-						<div className="row wrap" style={{ gap: 12 }}>
-							{rewards.map(r => (
-								<div key={r.id} className="card" style={{ minWidth: 240 }}>
-									<div className="row" style={{ justifyContent: 'space-between' }}>
-										<strong>{r.title}</strong>
-										<span className="mono">{r.cost_points} pts</span>
-									</div>
-									<div className="muted">{r.description}</div>
-									<div className="muted">Stock: {r.stock}</div>
-								</div>
-							))}
-						</div>
+						<table className="table">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th>Cost</th>
+									<th>Stock</th>
+									<th>Description</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								{rewards.map(r => (
+									<tr key={r.id}>
+										<td>{r.title}</td>
+										<td className="mono">{r.cost_points} pts</td>
+										<td className="mono">{r.stock}</td>
+										<td className="muted">{r.description}</td>
+										<td>
+											<button className="btn secondary" onClick={() => { if (confirm('Delete this reward?')) { fetch(`/api/campaigns/rewards/${r.id}`, { method: 'DELETE' }).then(() => loadRewards()); } }}>Delete</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					)}
 				</div>
 				<form onSubmit={redeemReward} className="row wrap" style={{ marginTop: 8, gap: 8 }}>

@@ -206,6 +206,18 @@ router.post('/rewards/:id/redeem', (req, res) => {
     res.json({ ok: true });
 });
 
+// Delete a reward and its redemptions
+router.delete('/rewards/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM redemptions WHERE reward_id = ?').run(id);
+        db.prepare('DELETE FROM rewards WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ ok: true });
+});
+
 // Delete a campaign and cascade related data
 router.delete('/:id', (req, res) => {
     const id = Number(req.params.id);
