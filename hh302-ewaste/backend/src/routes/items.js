@@ -1,4 +1,5 @@
 import express from 'express';
+import dayjs from 'dayjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
@@ -154,13 +155,25 @@ router.post('/:id/status', (req, res) => {
 	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
-	// Require scheduling before terminal updates
+	// Require scheduling and manual time before terminal updates
 	const terminal = ['picked_up','recycled','refurbished','disposed'];
 	if (terminal.includes(status)) {
 		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
 		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before marking as picked up / recycled / refurbished / disposed' });
 		if (existing.status !== 'scheduled') return res.status(400).json({ error: 'Only items currently scheduled can be updated to picked up / recycled / refurbished / disposed' });
+		const manual = req.body.manual_time || req.body.at;
+		if (!manual) return res.status(400).json({ error: 'manual_time (e.g., 2025-08-20 14:30) is required for status update' });
+		const parsed = dayjs(manual);
+		if (!parsed.isValid()) return res.status(400).json({ error: 'manual_time is invalid. Use YYYY-MM-DD HH:mm' });
+		const at = parsed.toISOString();
+		db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, req.params.id);
+		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+			.run(req.params.id, `status_${status}`, notes, at);
+		updatePickupsForItem(Number(req.params.id), at);
+		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+		return res.json({ item: mapItem(row) });
 	}
+	// Non-terminal statuses
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
