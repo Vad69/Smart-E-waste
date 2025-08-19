@@ -57,8 +57,11 @@ router.post('/:id/award', (req, res) => {
 		.get(user_id);
 	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
 	const canonicalName = existing?.user_name || firstName;
+	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const canonicalDept = existingDept?.department_name || (department_name || null);
 	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-		.run(user_id, canonicalName, points, req.params.id, now, department_name);
+		.run(user_id, canonicalName, points, req.params.id, now, canonicalDept);
 	res.status(201).json({ ok: true });
 });
 
@@ -107,8 +110,11 @@ router.post('/education/:resourceId/complete', (req, res) => {
             .get(user_id);
         const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
         const canonicalName = existing?.user_name || firstName;
+        const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(user_id);
+        const canonicalDept = existingDept?.department_name || (department_name || null);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, department_name);
+            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, canonicalDept);
     }
     res.status(201).json({ ok: true, points: r.points || 0 });
 });
@@ -165,8 +171,11 @@ router.post('/drives/:driveId/attend', (req, res) => {
             .get(reg.user_id);
         const firstName = String(reg.user_name || '').trim().split(/\s+/)[0] || null;
         const canonicalName = existing?.user_name || firstName;
+        const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(reg.user_id);
+        const canonicalDept = existingDept?.department_name || (reg.department_name || null);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, reg.department_name);
+            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, canonicalDept);
     }
     res.json({ ok: true });
 });
@@ -203,18 +212,6 @@ router.post('/rewards/:id/redeem', (req, res) => {
     db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
     db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
         .run(req.params.id, user_id, user_name, department_name, now);
-    res.json({ ok: true });
-});
-
-// Delete a reward and its redemptions
-router.delete('/rewards/:id', (req, res) => {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'invalid id' });
-    const tx = db.transaction(() => {
-        db.prepare('DELETE FROM redemptions WHERE reward_id = ?').run(id);
-        db.prepare('DELETE FROM rewards WHERE id = ?').run(id);
-    });
-    tx();
     res.json({ ok: true });
 });
 
