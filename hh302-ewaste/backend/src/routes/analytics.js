@@ -12,11 +12,13 @@ router.get('/summary', (req, res) => {
 	const hazardousCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE hazardous = 1').get().c;
 	const recyclableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE recyclable = 1').get().c;
 	const reusableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE reusable = 1').get().c;
-
 	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled','refurbished','disposed')").get().w;
 	const recoveryRate = totalWeight > 0 ? pickedUpWeight / totalWeight : 0;
-
-	res.json({ totalItems, totalWeight, byStatus, byCategory, hazardousCount, recyclableCount, reusableCount, recoveryRate });
+	const departmentsCount = db.prepare('SELECT COUNT(*) as c FROM departments').get().c;
+	const recycledCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE status = 'recycled'").get().c;
+	const refurbishedCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE status = 'refurbished'").get().c;
+	const disposedCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE status = 'disposed'").get().c;
+	res.json({ totalItems, totalWeight, byStatus, byCategory, hazardousCount, recyclableCount, reusableCount, recoveryRate, departmentsCount, recycledCount, refurbishedCount, disposedCount });
 });
 
 router.get('/trends', (req, res) => {
