@@ -70,7 +70,8 @@ export function initializeDatabase() {
 			address TEXT,
 			type TEXT NOT NULL,
 			license_no TEXT,
-			created_at TEXT NOT NULL
+			created_at TEXT NOT NULL,
+			active INTEGER NOT NULL DEFAULT 1
 		);
 
 		CREATE TABLE IF NOT EXISTS pickups (
@@ -79,6 +80,10 @@ export function initializeDatabase() {
 			scheduled_date TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'scheduled',
 			created_at TEXT NOT NULL,
+			manifest_no TEXT,
+			transporter_name TEXT,
+			vehicle_no TEXT,
+			transporter_contact TEXT,
 			FOREIGN KEY(vendor_id) REFERENCES vendors(id)
 		);
 
@@ -110,19 +115,32 @@ export function initializeDatabase() {
 			created_at TEXT NOT NULL,
 			FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
 		);
+
+		CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT
+		);
 	`);
 
-	// Ensure vendors.active exists
+	// Vendor migrations
 	const vendorCols = db.prepare('PRAGMA table_info(vendors)').all();
-	const hasActive = vendorCols.some(c => c.name === 'active');
-	if (!hasActive) {
-		try {
-			db.exec('ALTER TABLE vendors ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
-			// backfill not needed due to DEFAULT, but ensure all set to 1
-			db.exec('UPDATE vendors SET active = 1 WHERE active IS NULL');
-		} catch {}
-	}
+	const ensureVendorCol = (name, def) => { if (!vendorCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE vendors ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureVendorCol('authorization_no', 'TEXT');
+	ensureVendorCol('auth_valid_from', 'TEXT');
+	ensureVendorCol('auth_valid_to', 'TEXT');
+	ensureVendorCol('gst_no', 'TEXT');
+	ensureVendorCol('capacity_tpm', 'REAL');
+	ensureVendorCol('categories_handled', 'TEXT');
 
+	// Pickups migrations (manifest/transporter)
+	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
+	const ensurePickupCol = (name, def) => { if (!pickupCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE pickups ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensurePickupCol('manifest_no', 'TEXT');
+	ensurePickupCol('transporter_name', 'TEXT');
+	ensurePickupCol('vehicle_no', 'TEXT');
+	ensurePickupCol('transporter_contact', 'TEXT');
+
+	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {
 		const insertCat = db.prepare('INSERT INTO categories (key, name, hazard_level) VALUES (?, ?, ?)');
@@ -131,10 +149,15 @@ export function initializeDatabase() {
 		insertCat.run('hazardous', 'Hazardous', 'high');
 	}
 
-	const deptCount = db.prepare('SELECT COUNT(*) as c FROM departments').get().c;
-	if (deptCount === 0) {
-		const insertDept = db.prepare('INSERT INTO departments (name) VALUES (?)');
-		['IT', 'Labs', 'Admin', 'Hostel', 'Library'].forEach(name => insertDept.run(name));
+	// Seed facility settings defaults (if empty)
+	const settingsCount = db.prepare('SELECT COUNT(*) as c FROM settings').get().c;
+	if (settingsCount === 0) {
+		const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+		set.run('facility_name', '');
+		set.run('facility_address', '');
+		set.run('facility_authorization_no', '');
+		set.run('facility_contact_name', '');
+		set.run('facility_contact_phone', '');
 	}
 }
 

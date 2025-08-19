@@ -11,6 +11,7 @@ import Reports from './pages/Reports.jsx';
 import Campaigns from './pages/Campaigns.jsx';
 import Departments from './pages/Departments.jsx';
 import Scan from './pages/Scan.jsx';
+import Settings from './pages/Settings.jsx';
 import './styles.css';
 
 const router = createBrowserRouter([
@@ -24,6 +25,7 @@ const router = createBrowserRouter([
 			{ path: 'vendors', element: <Vendors /> },
 			{ path: 'pickups', element: <Pickups /> },
 			{ path: 'reports', element: <Reports /> },
+			{ path: 'settings', element: <Settings /> },
 			{ path: 'campaigns', element: <Campaigns /> },
 			{ path: 'departments', element: <Departments /> },
 			{ path: 'scan', element: <Scan /> },
