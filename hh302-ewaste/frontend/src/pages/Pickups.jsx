@@ -43,12 +43,6 @@ export default function Pickups() {
 			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); loadPickups(); });
 	}
 
-	function updatePickupStatus(id, status) {
-		fetch(`/api/pickups/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-			.then(r => r.json())
-			.then(() => loadPickups());
-	}
-
 	return (
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
@@ -103,8 +97,8 @@ export default function Pickups() {
 							<th>Status</th>
 							<th>Items</th>
 							<th>Breakdown</th>
+							<th>Scheduled Items</th>
 							<th>Last Update</th>
-							<th>Actions</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -116,11 +110,10 @@ export default function Pickups() {
 								<td>{p.status}</td>
 								<td>{p.item_count}</td>
 								<td><BreakdownBar counts={p.counts} /></td>
-								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
-								<td>
-									<button className="btn" onClick={() => updatePickupStatus(p.id, 'completed')} disabled={p.status !== 'scheduled'}>Complete</button>
-									<button className="btn secondary" style={{ marginLeft: 6 }} onClick={() => updatePickupStatus(p.id, 'cancelled')} disabled={p.status !== 'scheduled'}>Cancel</button>
+								<td style={{ maxWidth: 280 }}>
+									{p.items?.map(it => <div key={it.id} className="mono">#{it.id} – {it.name}</div>)}
 								</td>
+								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
 							</tr>
 						))}
 					</tbody>

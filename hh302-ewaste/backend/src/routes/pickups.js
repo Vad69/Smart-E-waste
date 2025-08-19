@@ -24,7 +24,7 @@ router.get('/', (req, res) => {
 			WHERE pi.pickup_id = ?
 			GROUP BY i.status
 		`).all(p.id);
-		const counts = { reported: 0, scheduled: 0, picked_up: 0, recycled: 0 };
+		const counts = { reported: 0, scheduled: 0, picked_up: 0, recycled: 0, refurbished: 0, disposed: 0 };
 		for (const r of countsRows) {
 			if (counts[r.status] === undefined) counts[r.status] = 0;
 			counts[r.status] += r.c;
@@ -35,7 +35,8 @@ router.get('/', (req, res) => {
 			FROM items i JOIN pickup_items pi ON i.id = pi.item_id
 			WHERE pi.pickup_id = ?
 		`).get(p.id).t;
-		return { ...mapPickup(p), vendor_name: p.vendor_name, item_count: total, counts, last_item_update: lastUpdate };
+		const items = db.prepare('SELECT i.id, i.name FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ? ORDER BY i.id ASC').all(p.id);
+		return { ...mapPickup(p), vendor_name: p.vendor_name, item_count: total, counts, last_item_update: lastUpdate, items };
 	});
 	res.json({ pickups: withCounts });
 });
