@@ -115,7 +115,7 @@ export default function Items() {
 								<td>{i.condition || '—'}</td>
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
-								<td><a href={`/api/items/${i.id}/label.svg?size=420`} target="_blank" rel="noreferrer">Label</a></td>
+								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
 									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Pick up</button>
 									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Complete</button>
@@ -154,7 +154,7 @@ export default function Items() {
 								<td>{i.condition || '—'}</td>
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
-								<td><a href={`/api/items/${i.id}/label.svg?size=420`} target="_blank" rel="noreferrer">Label</a></td>
+								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 							</tr>
 						))}
 					</tbody>

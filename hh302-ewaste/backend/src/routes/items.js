@@ -188,10 +188,10 @@ router.get('/:id/label.svg', async (req, res, next) => {
 	try {
 		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
 		if (!row) return res.status(404).send('Not found');
-		const size = Math.max(200, Math.min(600, Number(req.query.size) || 320));
-		const labelWidth = size + 220;
-		const labelHeight = Math.max(size + 60, 260);
-		const textX = size + 30;
+		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
+		const labelWidth = size + 260;
+		const labelHeight = Math.max(size + 80, 320);
+		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 		const now = new Date().toISOString();
