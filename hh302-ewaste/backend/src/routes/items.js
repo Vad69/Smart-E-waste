@@ -165,8 +165,14 @@ router.post('/:id/status', (req, res) => {
 	const terminal = ['picked_up','recycled','refurbished','disposed'];
 	if (terminal.includes(status)) {
 		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
-		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before marking as picked up / recycled / refurbished / disposed' });
-		if (existing.status !== 'scheduled') return res.status(400).json({ error: 'Only items currently scheduled can be updated to picked up / recycled / refurbished / disposed' });
+		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before status changes' });
+		// Transition rules
+		if (status === 'picked_up' && existing.status !== 'scheduled') {
+			return res.status(400).json({ error: 'Only items currently scheduled can be marked as picked up' });
+		}
+		if ((status === 'recycled' || status === 'refurbished' || status === 'disposed') && existing.status !== 'picked_up') {
+			return res.status(400).json({ error: 'Only items currently picked up can be marked as recycled/refurbished/disposed' });
+		}
 		const manual = req.body.manual_time || req.body.at;
 		if (!manual) return res.status(400).json({ error: 'manual_time (e.g., 2025-08-20 14:30) is required for status update' });
 		const parsed = dayjs(manual);
