@@ -192,6 +192,28 @@ router.post('/:id/status', (req, res) => {
 	res.json({ ok: true });
 });
 
+// Hard delete an item and recompute pickup statuses
+router.delete('/:id', (req, res) => {
+	const id = Number(req.params.id);
+	if (!id) return res.status(400).json({ error: 'invalid id' });
+	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	const pickupIds = db.prepare('SELECT DISTINCT pickup_id as id FROM pickup_items WHERE item_id = ?').all(id).map(r => r.id);
+	// Delete item (cascades to pickup_items and item_events)
+	db.prepare('DELETE FROM items WHERE id = ?').run(id);
+	// Recompute pickup statuses
+	for (const pid of pickupIds) {
+		const statuses = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pid).map(r => r.status);
+		let newStatus = 'scheduled';
+		if (statuses.length > 0) {
+			const allTerminal = statuses.every(s => ['recycled','refurbished','disposed'].includes(s));
+			newStatus = allTerminal ? 'completed' : 'scheduled';
+		}
+		db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(newStatus, pid);
+	}
+	res.json({ ok: true });
+});
+
 router.get('/:id/pickup-info', (req, res) => {
 	const id = Number(req.params.id);
 	if (!id) return res.status(400).json({ error: 'invalid id' });
