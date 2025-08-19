@@ -33,13 +33,12 @@ router.get('/types', (req, res) => {
 
 router.get('/', (req, res) => {
 	const { type, include_inactive } = req.query;
-	let rows = [];
-	const base = include_inactive === '1' ? 'SELECT * FROM vendors' : 'SELECT * FROM vendors WHERE active = 1';
-	if (type) {
-		rows = db.prepare(`${base} AND type = ? ORDER BY name ASC`).all(type);
-	} else {
-		rows = db.prepare(`${base} ORDER BY name ASC`).all();
-	}
+	const where = [];
+	const params = [];
+	if (include_inactive !== '1') where.push('active = 1');
+	if (type) { where.push('type = ?'); params.push(type); }
+	const sql = `SELECT * FROM vendors${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY name ASC`;
+	const rows = db.prepare(sql).all(...params);
 	res.json({ vendors: rows.map(mapVendor) });
 });
 
