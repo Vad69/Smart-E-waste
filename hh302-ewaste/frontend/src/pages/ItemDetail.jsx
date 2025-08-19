@@ -82,6 +82,11 @@ export default function ItemDetail() {
 				<h3>Vendor & Transport</h3>
 				<div><b>Vendor:</b> {pickup?.vendor_name || '—'} {pickup?.vendor_type ? `(${pickup.vendor_type})` : ''}</div>
 				<div><b>License:</b> {pickup?.vendor_license || '—'}</div>
+				<div><b>Authorization:</b> {pickup?.vendor_authorization_no || '—'}</div>
+				<div><b>Validity:</b> {pickup?.vendor_auth_valid_from || '—'} to {pickup?.vendor_auth_valid_to || '—'}</div>
+				<div><b>GST:</b> {pickup?.vendor_gst_no || '—'}</div>
+				<div><b>Categories:</b> {pickup?.vendor_categories_handled || '—'}</div>
+				<div><b>Capacity (TPM):</b> {pickup?.vendor_capacity_tpm ?? '—'}</div>
 				<div><b>Contact:</b> {pickup?.vendor_contact_name || '—'} {pickup?.vendor_phone ? `| ${pickup.vendor_phone}` : ''} {pickup?.vendor_email ? `| ${pickup.vendor_email}` : ''}</div>
 				<div><b>Address:</b> {pickup?.vendor_address || '—'}</div>
 				<div><b>Manifest:</b> {pickup?.manifest_no || '—'}</div>
