@@ -224,7 +224,7 @@ function updatePickupsForItem(itemId, now) {
 }
 
 router.get('/:id/events', (req, res) => {
-	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at DESC').all(req.params.id);
+	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
 	res.json({ events: rows });
 });
 
