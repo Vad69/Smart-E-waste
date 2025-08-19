@@ -15,6 +15,20 @@ function BreakdownBar({ counts }) {
 	);
 }
 
+function Legend() {
+	const keys = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	return (
+		<div className="row wrap" style={{ gap: 12, margin: '6px 0 12px 0' }}>
+			{keys.map(k => (
+				<div key={k} className="row" style={{ gap: 6, alignItems: 'center' }}>
+					<span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: COLORS[k], border: '1px solid #cbd5e1' }} />
+					<span style={{ fontSize: 12, color: '#334155' }}>{k}</span>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function Pickups() {
 	const [suggested, setSuggested] = useState({ suggested_items: [], vendors: [] });
 	const [vendorType, setVendorType] = useState('recycler');
@@ -41,12 +55,6 @@ export default function Pickups() {
 		const payload = { vendor_id: Number(selectedVendor), scheduled_date: date, item_ids: selectedItems };
 		fetch('/api/pickups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); loadPickups(); });
-	}
-
-	function updatePickupStatus(id, status) {
-		fetch(`/api/pickups/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
-			.then(r => r.json())
-			.then(() => loadPickups());
 	}
 
 	return (
@@ -94,6 +102,7 @@ export default function Pickups() {
 
 			<div className="card">
 				<h3>All Pickups</h3>
+				<Legend />
 				<table className="table">
 					<thead>
 						<tr>
@@ -103,8 +112,8 @@ export default function Pickups() {
 							<th>Status</th>
 							<th>Items</th>
 							<th>Breakdown</th>
+							<th>Scheduled Items</th>
 							<th>Last Update</th>
-							<th>Actions</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -116,11 +125,10 @@ export default function Pickups() {
 								<td>{p.status}</td>
 								<td>{p.item_count}</td>
 								<td><BreakdownBar counts={p.counts} /></td>
-								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
-								<td>
-									<button className="btn" onClick={() => updatePickupStatus(p.id, 'completed')} disabled={p.status !== 'scheduled'}>Complete</button>
-									<button className="btn secondary" style={{ marginLeft: 6 }} onClick={() => updatePickupStatus(p.id, 'cancelled')} disabled={p.status !== 'scheduled'}>Cancel</button>
+								<td style={{ maxWidth: 280 }}>
+									{p.items?.map(it => <div key={it.id} className="mono">#{it.id} – {it.name}</div>)}
 								</td>
+								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
 							</tr>
 						))}
 					</tbody>

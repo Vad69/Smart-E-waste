@@ -42,13 +42,34 @@ export default function Items() {
 			});
 	}
 
-	function setItemStatus(id, newStatus) {
-		return fetch(`/api/items/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: newStatus, notes: 'inline update' }) })
-			.then(r => r.json()).then(() => load());
+	async function setItemStatus(id, newStatus) {
+		let body = { status: newStatus, notes: 'inline update' };
+		if (['picked_up','recycled','refurbished','disposed'].includes(newStatus)) {
+			const manual = window.prompt('Enter time (YYYY-MM-DD HH:mm) for this status change:');
+			if (!manual) return;
+			body.manual_time = manual;
+		}
+		const res = await fetch(`/api/items/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			return alert(err.error || 'Failed to update status');
+		}
+		await res.json();
+		load();
 	}
 
-	const openItems = useMemo(() => items.filter(i => i.status !== 'recycled'), [items]);
-	const completedItems = useMemo(() => items.filter(i => i.status === 'recycled'), [items]);
+	async function deleteItem(id) {
+		if (!window.confirm(`Delete item #${id}? This cannot be undone.`)) return;
+		const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			return alert(err.error || 'Failed to delete');
+		}
+		load();
+	}
+
+	const openItems = useMemo(() => items.filter(i => i.status !== 'recycled' && i.status !== 'refurbished' && i.status !== 'disposed'), [items]);
+	const completedItems = useMemo(() => items.filter(i => i.status === 'recycled' || i.status === 'refurbished' || i.status === 'disposed'), [items]);
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
@@ -117,10 +138,11 @@ export default function Items() {
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
-									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Pick up</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycle</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'picked_up'}>Refurbish</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'picked_up'}>Dispose</button>
+									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'scheduled'}>Pick up</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'scheduled'}>Recycle</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'scheduled'}>Refurbish</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'scheduled'}>Dispose</button>
+									<button className="btn secondary" onClick={() => deleteItem(i.id)} style={{ marginLeft: 6 }}>Delete</button>
 								</td>
 							</tr>
 						))}
@@ -157,6 +179,7 @@ export default function Items() {
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
+								<td><button className="btn secondary" onClick={() => deleteItem(i.id)}>Delete</button></td>
 							</tr>
 						))}
 					</tbody>

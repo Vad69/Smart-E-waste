@@ -1,4 +1,5 @@
 import express from 'express';
+import dayjs from 'dayjs';
 import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
@@ -154,14 +155,30 @@ router.post('/:id/status', (req, res) => {
 	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	// Require scheduling and manual time before terminal updates
+	const terminal = ['picked_up','recycled','refurbished','disposed'];
+	if (terminal.includes(status)) {
+		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
+		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before marking as picked up / recycled / refurbished / disposed' });
+		if (existing.status !== 'scheduled') return res.status(400).json({ error: 'Only items currently scheduled can be updated to picked up / recycled / refurbished / disposed' });
+		const manual = req.body.manual_time || req.body.at;
+		if (!manual) return res.status(400).json({ error: 'manual_time (e.g., 2025-08-20 14:30) is required for status update' });
+		const parsed = dayjs(manual);
+		if (!parsed.isValid()) return res.status(400).json({ error: 'manual_time is invalid. Use YYYY-MM-DD HH:mm' });
+		const at = parsed.toISOString();
+		db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, req.params.id);
+		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+			.run(req.params.id, `status_${status}`, notes, at);
+		updatePickupsForItem(Number(req.params.id), at);
+		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+		return res.json({ item: mapItem(row) });
+	}
+	// Non-terminal statuses
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 		.run(req.params.id, `status_${status}`, notes, now);
-
-	// Auto-update related pickups
 	updatePickupsForItem(Number(req.params.id), now);
-
 	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	res.json({ item: mapItem(row) });
 });
@@ -261,6 +278,28 @@ router.get('/:id/label.png', async (req, res, next) => {
 		next(e);
 	}
 });
+
+router.delete('/:id', (req, res) => {
+	const id = Number(req.params.id);
+	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(id).map(r => r.pickup_id);
+	// Delete item (cascades to item_events and pickup_items)
+	db.prepare('DELETE FROM items WHERE id = ?').run(id);
+	// Recompute pickups that referenced this item
+	for (const pid of pickupIds) {
+		recomputePickupStatus(pid);
+	}
+	return res.json({ ok: true });
+});
+
+function recomputePickupStatus(pickupId) {
+	const rows = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
+	if (rows.length === 0) return; // keep current status if no items remain
+	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
+	const allFinal = rows.every(r => finalStatuses.has(r.status));
+	db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(allFinal ? 'completed' : 'scheduled', pickupId);
+}
 
 function escapeXml(s) {
 	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
