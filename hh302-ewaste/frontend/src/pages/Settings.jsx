@@ -3,12 +3,13 @@ import React, { useEffect, useState } from 'react';
 export default function Settings() {
     const [s, setS] = useState({ facility_name: '', facility_address: '', facility_authorization_no: '', facility_contact_name: '', facility_contact_phone: '' });
     const [saving, setSaving] = useState(false);
-    const [locked, setLocked] = useState(false);
+    const [locked, setLocked] = useState(true);
     const [justSaved, setJustSaved] = useState(false);
 
     function load() {
         fetch('/api/settings').then(r => r.json()).then(d => {
             setS(prev => ({ ...prev, ...(d.settings || {}) }));
+            setLocked(true);
         });
     }
     useEffect(() => { load(); }, []);
