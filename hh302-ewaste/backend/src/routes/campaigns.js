@@ -118,11 +118,11 @@ router.get('/:id/drives', (req, res) => {
 });
 
 router.post('/:id/drives', (req, res) => {
-    const { title, description = '', start_date = null, end_date = null, location = '', capacity = null, points = 0 } = req.body || {};
+    const { title, description = '', start_date = null, end_date = null, location = '', points = 0 } = req.body || {};
     if (!title) return res.status(400).json({ error: 'title is required' });
     const now = nowIso();
-    const info = db.prepare('INSERT INTO drives (title, description, start_date, end_date, location, capacity, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(title, description, start_date, end_date, location, capacity, Number(points || 0), req.params.id, now);
+    const info = db.prepare('INSERT INTO drives (title, description, start_date, end_date, location, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(title, description, start_date, end_date, location, Number(points || 0), req.params.id, now);
     const row = db.prepare('SELECT * FROM drives WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json({ drive: row });
 });
