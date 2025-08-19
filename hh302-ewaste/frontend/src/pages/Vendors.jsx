@@ -5,7 +5,7 @@ export default function Vendors() {
 	const [types, setTypes] = useState(['recycler','hazardous','refurbisher']);
 	const [typeFilter, setTypeFilter] = useState('');
 	const [includeInactive, setIncludeInactive] = useState(false);
-	const [form, setForm] = useState({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '' });
+	const [form, setForm] = useState({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '', contact_name: '', phone: '', email: '', address: '' });
 
 	function load() {
 		const params = new URLSearchParams();
@@ -41,6 +41,10 @@ export default function Vendors() {
 					<input className="input" placeholder="GST No" value={form.gst_no} onChange={e => setForm(v => ({ ...v, gst_no: e.target.value }))} />
 					<input className="input" type="number" min="0" step="0.1" placeholder="Capacity (TPM)" value={form.capacity_tpm} onChange={e => setForm(v => ({ ...v, capacity_tpm: e.target.value }))} />
 					<input className="input" placeholder="Categories handled (codes)" value={form.categories_handled} onChange={e => setForm(v => ({ ...v, categories_handled: e.target.value }))} />
+					<input className="input" placeholder="Contact Name" value={form.contact_name} onChange={e => setForm(v => ({ ...v, contact_name: e.target.value }))} />
+					<input className="input" placeholder="Phone" value={form.phone} onChange={e => setForm(v => ({ ...v, phone: e.target.value }))} />
+					<input className="input" placeholder="Email" value={form.email} onChange={e => setForm(v => ({ ...v, email: e.target.value }))} />
+					<input className="input" placeholder="Address" value={form.address} onChange={e => setForm(v => ({ ...v, address: e.target.value }))} style={{ gridColumn: '1 / span 2' }} />
 					<button className="btn" type="submit">Save</button>
 				</form>
 			</div>

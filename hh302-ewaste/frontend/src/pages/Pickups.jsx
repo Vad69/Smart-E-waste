@@ -35,6 +35,7 @@ export default function Pickups() {
 	const [selectedVendor, setSelectedVendor] = useState('');
 	const [selectedItems, setSelectedItems] = useState([]);
 	const [date, setDate] = useState('');
+	const [manifest, setManifest] = useState({ manifest_no: '', transporter_name: '', vehicle_no: '', transporter_contact: '' });
 	const [pickups, setPickups] = useState([]);
 
 	function loadSuggest() {
@@ -52,16 +53,16 @@ export default function Pickups() {
 
 	function schedule(e) {
 		e.preventDefault();
-		const payload = { vendor_id: Number(selectedVendor), scheduled_date: date, item_ids: selectedItems };
+		const payload = { vendor_id: Number(selectedVendor), scheduled_date: date, item_ids: selectedItems, ...manifest };
 		fetch('/api/pickups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); loadPickups(); });
+			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); setManifest({ manifest_no: '', transporter_name: '', vehicle_no: '', transporter_contact: '' }); loadPickups(); });
 	}
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
 				<h3>Schedule Pickup</h3>
-				<form onSubmit={schedule} className="grid" style={{ gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+				<form onSubmit={schedule} className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
 					<select value={vendorType} onChange={e => setVendorType(e.target.value)}>
 						{['recycler','hazardous','refurbisher'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
@@ -70,6 +71,10 @@ export default function Pickups() {
 						{suggested.vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
 					</select>
 					<input className="input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} required />
+					<input className="input" placeholder="Manifest No" value={manifest.manifest_no} onChange={e => setManifest(m => ({ ...m, manifest_no: e.target.value }))} />
+					<input className="input" placeholder="Transporter Name" value={manifest.transporter_name} onChange={e => setManifest(m => ({ ...m, transporter_name: e.target.value }))} />
+					<input className="input" placeholder="Vehicle No" value={manifest.vehicle_no} onChange={e => setManifest(m => ({ ...m, vehicle_no: e.target.value }))} />
+					<input className="input" placeholder="Transporter Contact" value={manifest.transporter_contact} onChange={e => setManifest(m => ({ ...m, transporter_contact: e.target.value }))} />
 					<button className="btn" type="submit" disabled={!selectedVendor || selectedItems.length === 0}>Schedule</button>
 				</form>
 			</div>
@@ -112,6 +117,7 @@ export default function Pickups() {
 							<th>Items</th>
 							<th>Breakdown</th>
 							<th>Scheduled Items</th>
+							<th>Manifest</th>
 							<th>Last Update</th>
 						</tr>
 					</thead>
@@ -125,6 +131,11 @@ export default function Pickups() {
 								<td><BreakdownBar counts={p.counts} /></td>
 								<td style={{ maxWidth: 280 }}>
 									{p.items?.map(it => <div key={it.id} className="mono">#{it.id} – {it.name}</div>)}
+								</td>
+								<td className="mono" style={{ maxWidth: 260 }}>
+									<div>{p.manifest_no || '—'}</div>
+									<div>{p.transporter_name || '—'} {p.vehicle_no ? `| ${p.vehicle_no}` : ''}</div>
+									<div>{p.transporter_contact || ''}</div>
 								</td>
 								<td className="mono">{p.last_item_update?.replace?.('T',' ').slice?.(0,16) || '—'}</td>
 							</tr>

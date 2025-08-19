@@ -155,3 +155,70 @@ router.get('/compliance.pdf', (req, res) => {
 });
 
 export default router;
+
+// CPCB Form-6 (Simplified manifest PDF for pickups within range)
+router.get('/form6.pdf', (req, res) => {
+    const { from, to } = req.query;
+    const fromDate = from ? dayjs(from) : dayjs().subtract(7, 'day');
+    const toDate = to ? dayjs(to) : dayjs();
+    const fromIso = fromDate.toISOString();
+    const toIso = toDate.toISOString();
+
+    // Facility
+    const settingsRows = db.prepare('SELECT key, value FROM settings').all();
+    const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+
+    const pickups = db.prepare(`
+        SELECT p.*, v.name as vendor_name, v.address as vendor_address, v.authorization_no as vendor_auth, v.gst_no as vendor_gst
+        FROM pickups p JOIN vendors v ON v.id = p.vendor_id
+        WHERE p.scheduled_date BETWEEN ? AND ?
+        ORDER BY p.scheduled_date ASC
+    `).all(fromIso, toIso);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="form6_${fromDate.format('YYYYMMDD')}_${toDate.format('YYYYMMDD')}.pdf"`);
+
+    const doc = new PDFDocument({ margin: 36 });
+    doc.pipe(res);
+
+    doc.fontSize(16).text('FORM 6 — Manifest Summary (E-Waste)', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).text(`Period: ${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')} | TZ: ${DEFAULT_TZ} | Generated: ${nowInTz()}`, { align: 'center' });
+    doc.moveDown(1);
+
+    doc.fontSize(12).text('Facility Details', { underline: true });
+    doc.fontSize(10).text(`Name: ${settings.facility_name || ''}`);
+    doc.text(`Address: ${settings.facility_address || ''}`);
+    doc.text(`Authorization No: ${settings.facility_authorization_no || ''}`);
+    doc.moveDown(0.5);
+
+    if (pickups.length === 0) {
+        doc.text('No pickups in the selected period.');
+        doc.end();
+        return;
+    }
+
+    pickups.forEach(p => {
+        doc.fontSize(12).text(`Pickup #${p.id} — ${p.vendor_name}`);
+        doc.fontSize(10)
+            .text(`Scheduled: ${p.scheduled_date}`)
+            .text(`Manifest No: ${p.manifest_no || '—'}`)
+            .text(`Transporter: ${p.transporter_name || '—'} | Vehicle: ${p.vehicle_no || '—'} | Contact: ${p.transporter_contact || '—'}`)
+            .text(`Vendor Address: ${p.vendor_address || '—'}`)
+            .text(`Vendor Auth/GST: ${p.vendor_auth || '—'} / ${p.vendor_gst || '—'}`);
+
+        // Items table
+        const items = db.prepare('SELECT i.id, i.name, i.weight_kg, i.category_key FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ? ORDER BY i.id ASC').all(p.id);
+        if (items.length === 0) {
+            doc.text('  No items');
+        } else {
+            items.forEach(it => doc.text(`  - #${it.id} ${it.name} | ${it.category_key} | ${it.weight_kg || 0} kg`));
+        }
+        doc.moveDown(0.5);
+    });
+
+    doc.addPage();
+    doc.fontSize(10).text('Note: This is a consolidated manifest summary. For submission, ensure vendor authorization validity, transporter details, and signatory blocks per CPCB guidelines are completed.');
+
+    doc.end();
+});

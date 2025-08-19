@@ -11,7 +11,11 @@ function mapPickup(row) {
 		vendor_id: row.vendor_id,
 		scheduled_date: row.scheduled_date,
 		status: row.status,
-		created_at: row.created_at
+		created_at: row.created_at,
+		manifest_no: row.manifest_no,
+		transporter_name: row.transporter_name,
+		vehicle_no: row.vehicle_no,
+		transporter_contact: row.transporter_contact
 	};
 }
 
@@ -52,7 +56,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-	const { vendor_id, scheduled_date, item_ids = [] } = req.body || {};
+	const { vendor_id, scheduled_date, item_ids = [], manifest_no = null, transporter_name = null, vehicle_no = null, transporter_contact = null } = req.body || {};
 	if (!vendor_id || !scheduled_date) return res.status(400).json({ error: 'vendor_id and scheduled_date are required' });
 	const vendor = db.prepare('SELECT * FROM vendors WHERE id = ?').get(vendor_id);
 	if (!vendor) return res.status(400).json({ error: 'Invalid vendor_id' });
@@ -62,8 +66,8 @@ router.post('/', (req, res) => {
 	const schedAt = normalizeLocal(scheduled_date);
 	if (!schedAt) return res.status(400).json({ error: 'scheduled_date is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 	const now = nowIso();
-	const pickupInfo = db.prepare('INSERT INTO pickups (vendor_id, scheduled_date, status, created_at) VALUES (?, ?, ?, ?)')
-		.run(vendor_id, schedAt, 'scheduled', now);
+	const pickupInfo = db.prepare('INSERT INTO pickups (vendor_id, scheduled_date, status, created_at, manifest_no, transporter_name, vehicle_no, transporter_contact) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+		.run(vendor_id, schedAt, 'scheduled', now, manifest_no, transporter_name, vehicle_no, transporter_contact);
 	const pickup_id = pickupInfo.lastInsertRowid;
 
 	const insertPI = db.prepare('INSERT INTO pickup_items (pickup_id, item_id) VALUES (?, ?)');

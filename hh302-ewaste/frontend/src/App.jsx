@@ -12,6 +12,7 @@ export default function App() {
 					<NavLink to="/vendors">Vendors</NavLink>
 					<NavLink to="/pickups">Pickups</NavLink>
 					<NavLink to="/reports">Reports</NavLink>
+					<NavLink to="/settings">Settings</NavLink>
 					<NavLink to="/campaigns">Campaigns</NavLink>
 					<NavLink to="/departments">Departments</NavLink>
 					<NavLink to="/scan">Scan QR</NavLink>

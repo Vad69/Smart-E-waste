@@ -132,6 +132,14 @@ export function initializeDatabase() {
 	ensureVendorCol('capacity_tpm', 'REAL');
 	ensureVendorCol('categories_handled', 'TEXT');
 
+	// Pickups migrations (manifest/transporter)
+	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
+	const ensurePickupCol = (name, def) => { if (!pickupCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE pickups ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensurePickupCol('manifest_no', 'TEXT');
+	ensurePickupCol('transporter_name', 'TEXT');
+	ensurePickupCol('vehicle_no', 'TEXT');
+	ensurePickupCol('transporter_contact', 'TEXT');
+
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {

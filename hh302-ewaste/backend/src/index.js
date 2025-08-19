@@ -9,6 +9,7 @@ import vendorsRouter from './routes/vendors.js';
 import pickupsRouter from './routes/pickups.js';
 import analyticsRouter from './routes/analytics.js';
 import reportsRouter from './routes/reports.js';
+import settingsRouter from './routes/settings.js';
 import departmentsRouter from './routes/departments.js';
 import campaignsRouter from './routes/campaigns.js';
 
@@ -33,6 +34,7 @@ app.use('/api/vendors', vendorsRouter);
 app.use('/api/pickups', pickupsRouter);
 app.use('/api/analytics', analyticsRouter);
 app.use('/api/reports', reportsRouter);
+app.use('/api/settings', settingsRouter);
 app.use('/api/departments', departmentsRouter);
 app.use('/api/campaigns', campaignsRouter);
 
