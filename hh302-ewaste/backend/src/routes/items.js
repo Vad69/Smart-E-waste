@@ -8,6 +8,17 @@ import { formatInTz, nowInTz } from '../time.js';
 
 const router = express.Router();
 
+function toIsoFlexible(input) {
+	if (!input) return null;
+	let s = String(input).trim();
+	if (!s) return null;
+	if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(s)) s = s.replace(' ', 'T');
+	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) s = s + ':00';
+	const d = new Date(s);
+	if (isNaN(d.getTime())) return null;
+	return d.toISOString();
+}
+
 function mapItem(row) {
 	if (!row) return null;
 	return {
@@ -67,11 +78,9 @@ router.post('/', (req, res) => {
 	} = req.body || {};
 
 	if (!name) return res.status(400).json({ error: 'name is required' });
-	if (reported_time) {
-		const parsed = dayjs(reported_time);
-		if (!parsed.isValid()) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or a valid ISO string' });
-		now = parsed.toISOString();
-	}
+	const rt = toIsoFlexible(reported_time);
+	if (reported_time && !rt) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
+	if (rt) now = rt;
 
 	const qr_uid = uuidv4();
 	let category_key = null;
@@ -161,23 +170,18 @@ router.post('/:id/status', (req, res) => {
 	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
-	// Require scheduling and manual time before terminal updates
 	const terminal = ['picked_up','recycled','refurbished','disposed'];
 	if (terminal.includes(status)) {
 		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
 		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before status changes' });
-		// Transition rules
 		if (status === 'picked_up' && existing.status !== 'scheduled') {
 			return res.status(400).json({ error: 'Only items currently scheduled can be marked as picked up' });
 		}
 		if ((status === 'recycled' || status === 'refurbished' || status === 'disposed') && existing.status !== 'picked_up') {
 			return res.status(400).json({ error: 'Only items currently picked up can be marked as recycled/refurbished/disposed' });
 		}
-		const manual = req.body.manual_time || req.body.at;
-		if (!manual) return res.status(400).json({ error: 'manual_time (e.g., 2025-08-20 14:30) is required for status update' });
-		const parsed = dayjs(manual);
-		if (!parsed.isValid()) return res.status(400).json({ error: 'manual_time is invalid. Use YYYY-MM-DD HH:mm' });
-		const at = parsed.toISOString();
+		const at = toIsoFlexible(req.body.manual_time || req.body.at);
+		if (!at) return res.status(400).json({ error: 'manual_time is invalid or missing. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 		db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, req.params.id);
 		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 			.run(req.params.id, `status_${status}`, notes, at);
@@ -185,7 +189,6 @@ router.post('/:id/status', (req, res) => {
 		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 		return res.json({ item: mapItem(row) });
 	}
-	// Non-terminal statuses
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
@@ -307,7 +310,7 @@ router.delete('/:id', (req, res) => {
 
 function recomputePickupStatus(pickupId) {
 	const rows = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
-	if (rows.length === 0) return; // keep current status if no items remain
+	if (rows.length === 0) return;
 	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
 	const allFinal = rows.every(r => finalStatuses.has(r.status));
 	db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(allFinal ? 'completed' : 'scheduled', pickupId);
