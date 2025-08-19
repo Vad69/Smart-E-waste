@@ -9,7 +9,7 @@ export default function Items() {
 	const [department, setDepartment] = useState('');
 	const [category, setCategory] = useState('');
 	const [departments, setDepartments] = useState([]);
-	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
+	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', reported_time: '', purchase_date: '' });
 
 	function load() {
 		const params = new URLSearchParams();
@@ -33,13 +33,13 @@ export default function Items() {
 			weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : 0,
 			department_id: form.department_id ? Number(form.department_id) : null,
 			category_key: form.category_key || undefined,
-			purchase_date: form.purchase_date || null,
-			reported_time: form.reported_time || undefined
+			reported_time: form.reported_time || undefined,
+			purchase_date: form.purchase_date || undefined
 		};
 		fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
-				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
+				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', reported_time: '', purchase_date: '' });
 				load();
 			});
 	}
@@ -47,7 +47,7 @@ export default function Items() {
 	async function setItemStatus(id, newStatus) {
 		let body = { status: newStatus, notes: 'inline update' };
 		if (['picked_up','recycled','refurbished','disposed'].includes(newStatus)) {
-			const manual = window.prompt('Enter time (YYYY-MM-DD HH:mm) for this status change:');
+			const manual = window.prompt('Enter time for this status (YYYY-MM-DD HH:mm)');
 			if (!manual) return;
 			body.manual_time = manual;
 		}
@@ -90,8 +90,14 @@ export default function Items() {
 					</select>
 					<input className="input" placeholder="Condition (e.g., good/poor)" value={form.condition} onChange={e => setForm(v => ({ ...v, condition: e.target.value }))} />
 					<input className="input" placeholder="Weight (kg)" value={form.weight_kg} onChange={e => setForm(v => ({ ...v, weight_kg: e.target.value }))} />
-					<input className="input" type="date" value={form.purchase_date} onChange={e => setForm(v => ({ ...v, purchase_date: e.target.value }))} />
-					<input className="input" type="datetime-local" value={form.reported_time} onChange={e => setForm(v => ({ ...v, reported_time: e.target.value.replace('T',' ') }))} />
+					<div style={{ gridColumn: 'span 2' }}>
+						<div style={{ fontSize: 12, color: '#334155', marginBottom: 4 }}>Reported at (date & time)</div>
+						<input className="input" type="datetime-local" value={form.reported_time} onChange={e => setForm(v => ({ ...v, reported_time: e.target.value }))} />
+					</div>
+					<div style={{ gridColumn: 'span 2' }}>
+						<div style={{ fontSize: 12, color: '#334155', marginBottom: 4 }}>Purchase date (optional)</div>
+						<input className="input" type="date" value={form.purchase_date} onChange={e => setForm(v => ({ ...v, purchase_date: e.target.value }))} />
+					</div>
 					<button className="btn" type="submit">Submit</button>
 				</form>
 			</div>
@@ -183,7 +189,6 @@ export default function Items() {
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
-								<td><button className="btn secondary" onClick={() => deleteItem(i.id)}>Delete</button></td>
 							</tr>
 						))}
 					</tbody>
