@@ -18,7 +18,7 @@ export default function Campaigns() {
 	const [award, setAward] = useState({ user_id: '', user_name: '', department_name: '', points: '' });
 
 	const [resources, setResources] = useState([]);
-	const [resForm, setResForm] = useState({ title: '', content_url: '', content_type: 'article', points: 10 });
+	const [resForm, setResForm] = useState({ title: '', content_type: 'article', points: 10 });
 	const [completeForm, setCompleteForm] = useState({ resource_id: '', user_id: '', user_name: '', department_name: '' });
 
 	const [drives, setDrives] = useState([]);
@@ -157,18 +157,35 @@ export default function Campaigns() {
 			<Section title="Resources (Awareness & Engagement)">
 				<form onSubmit={addResource} className="grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
 					<input className="input" placeholder="Title" value={resForm.title} onChange={e => setResForm(v => ({ ...v, title: e.target.value }))} />
-					<div />
 					<select value={resForm.content_type} onChange={e => setResForm(v => ({ ...v, content_type: e.target.value }))}>
 						{['article','videography','photography','editor','volunteer','quiz','seminar'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
-					<input className="input" type="number" placeholder="Points" value={resForm.points} onChange={e => setResForm(v => ({ ...v, points: e.target.value }))} />
+					<div style={{ display: 'flex', flexDirection: 'column' }}>
+						<label className="muted" style={{ fontSize: 12 }}>Points</label>
+						<input className="input" type="number" placeholder="Points" value={resForm.points} onChange={e => setResForm(v => ({ ...v, points: e.target.value }))} />
+					</div>
 					<button className="btn" type="submit" disabled={!selected}>Add Resource</button>
 				</form>
 				<div style={{ marginTop: 8 }}>
 					{resources.length === 0 ? <div className="muted">No resources yet.</div> : (
-						<ul>
-							{resources.map(r => <li key={r.id}><span className="mono">[{r.content_type}]</span> {r.title} {r.points ? `(+${r.points})` : ''} {r.content_url && <a href={r.content_url} target="_blank" rel="noreferrer">open</a>}</li>)}
-						</ul>
+						<table className="table">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th>Type</th>
+									<th>Points</th>
+								</tr>
+							</thead>
+							<tbody>
+								{resources.map(r => (
+									<tr key={r.id}>
+										<td>{r.title}</td>
+										<td className="mono">{r.content_type}</td>
+										<td className="mono">{r.points || 0}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					)}
 				</div>
 				<form onSubmit={completeResource} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
