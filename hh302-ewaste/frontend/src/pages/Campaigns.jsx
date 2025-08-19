@@ -78,7 +78,7 @@ export default function Campaigns() {
 	function attendDrive(e) {
 		e.preventDefault(); if (!attendForm.drive_id) return;
 		fetch(`/api/campaigns/drives/${attendForm.drive_id}/attend`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: attendForm.user_id }) })
-			.then(() => setAttendForm({ drive_id: '', user_id: '' }));
+			.then(() => { setAttendForm({ drive_id: '', user_id: '' }); loadLeaderboard(); });
 	}
 	function addReward(e) {
 		e.preventDefault();

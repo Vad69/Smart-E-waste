@@ -176,23 +176,33 @@ router.post('/drives/:driveId/register', (req, res) => {
 });
 
 router.post('/drives/:driveId/attend', (req, res) => {
-    const { user_id } = req.body || {};
+    const { user_id, user_name = null, department_name = null } = req.body || {};
     if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-    const reg = db.prepare('SELECT * FROM drive_registrations WHERE drive_id = ? AND user_id = ?').get(req.params.driveId, user_id);
-    if (!reg) return res.status(404).json({ error: 'registration not found' });
     const now = nowIso();
-    db.prepare('UPDATE drive_registrations SET attended = 1, attended_at = ? WHERE id = ?').run(now, reg.id);
     const d = db.prepare('SELECT * FROM drives WHERE id = ?').get(req.params.driveId);
+    if (!d) return res.status(404).json({ error: 'drive not found' });
+    // Ensure there is a registration row; create one if missing
+    let reg = db.prepare('SELECT * FROM drive_registrations WHERE drive_id = ? AND user_id = ?').get(req.params.driveId, user_id);
+    if (!reg) {
+        const info = db.prepare('INSERT INTO drive_registrations (drive_id, user_id, user_name, department_name, registered_at, attended, attended_at) VALUES (?, ?, ?, ?, ?, 1, ?)')
+            .run(req.params.driveId, user_id, user_name, department_name, now, now);
+        reg = db.prepare('SELECT * FROM drive_registrations WHERE id = ?').get(info.lastInsertRowid);
+    } else if (!reg.attended) {
+        db.prepare('UPDATE drive_registrations SET attended = 1, attended_at = ?, user_name = COALESCE(user_name, ?), department_name = COALESCE(department_name, ?) WHERE id = ?')
+            .run(now, user_name, department_name, reg.id);
+        reg = { ...reg, attended: 1, attended_at: now, user_name: reg.user_name || user_name, department_name: reg.department_name || department_name };
+    }
+    // Award points to leaderboard if configured
     if ((d.points || 0) > 0 && d.campaign_id) {
         const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
-            .get(reg.user_id);
-        const firstName = String(reg.user_name || '').trim().split(/\s+/)[0] || null;
+            .get(user_id);
+        const firstName = String((user_name || reg.user_name || '')).trim().split(/\s+/)[0] || null;
         const canonicalName = existing?.user_name || firstName;
         const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
-            .get(reg.user_id);
-        const canonicalDept = existingDept?.department_name || (reg.department_name || null);
+            .get(user_id);
+        const canonicalDept = existingDept?.department_name || (department_name || reg.department_name || null);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, canonicalDept);
+            .run(user_id, canonicalName, d.points || 0, d.campaign_id, now, canonicalDept);
     }
     res.json({ ok: true });
 });
