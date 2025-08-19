@@ -23,8 +23,10 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
 	const now = nowIso();
-	const { title, description = '', start_date = null, end_date = null, type = 'awareness', points = 0 } = req.body || {};
+	let { title, description = '', start_date = null, end_date = null, type = 'awareness', points = 0 } = req.body || {};
 	if (!title) return res.status(400).json({ error: 'title is required' });
+	const allowed = new Set(['awareness','challenge']);
+	if (!allowed.has(type)) type = 'awareness';
 	const info = db.prepare('INSERT INTO campaigns (title, description, start_date, end_date, type, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
 		.run(title, description, start_date, end_date, type, points, now);
 	const row = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(info.lastInsertRowid);

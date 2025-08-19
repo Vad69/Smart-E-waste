@@ -102,7 +102,7 @@ export default function Campaigns() {
 					<input className="input" placeholder="Title" value={form.title} onChange={e => setForm(v => ({ ...v, title: e.target.value }))} required />
 					<input className="input" placeholder="Description" value={form.description} onChange={e => setForm(v => ({ ...v, description: e.target.value }))} />
 					<select value={form.type} onChange={e => setForm(v => ({ ...v, type: e.target.value }))}>
-						{['awareness','challenge','drive','reward'].map(t => <option key={t} value={t}>{t}</option>)}
+						{['awareness','challenge'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
 					<div style={{ display: 'flex', flexDirection: 'column' }}>
 						<label className="muted" style={{ fontSize: 12 }}>Start Date</label>
@@ -154,12 +154,12 @@ export default function Campaigns() {
 				</div>
 			</Section>
 
-			<Section title="Education (Sustainability resources)">
+			<Section title="Resources (Awareness & Engagement)">
 				<form onSubmit={addResource} className="grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
 					<input className="input" placeholder="Title" value={resForm.title} onChange={e => setResForm(v => ({ ...v, title: e.target.value }))} />
-					<input className="input" placeholder="Content URL" value={resForm.content_url} onChange={e => setResForm(v => ({ ...v, content_url: e.target.value }))} />
+					<div />
 					<select value={resForm.content_type} onChange={e => setResForm(v => ({ ...v, content_type: e.target.value }))}>
-						{['article','video','quiz','guide'].map(t => <option key={t} value={t}>{t}</option>)}
+						{['article','videography','photography','editor','volunteer','quiz','seminar'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
 					<input className="input" type="number" placeholder="Points" value={resForm.points} onChange={e => setResForm(v => ({ ...v, points: e.target.value }))} />
 					<button className="btn" type="submit" disabled={!selected}>Add Resource</button>
