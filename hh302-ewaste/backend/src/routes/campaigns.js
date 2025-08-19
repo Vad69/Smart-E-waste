@@ -181,17 +181,17 @@ router.post('/drives/:driveId/attend', (req, res) => {
 });
 
 // Rewards store
-router.get('/rewards', (req, res) => {
-    const rows = db.prepare('SELECT * FROM rewards WHERE active = 1 ORDER BY created_at DESC').all();
+router.get('/:id/rewards', (req, res) => {
+    const rows = db.prepare('SELECT * FROM rewards WHERE active = 1 AND (campaign_id = ? OR campaign_id IS NULL) ORDER BY created_at DESC').all(req.params.id);
     res.json({ rewards: rows });
 });
 
-router.post('/rewards', (req, res) => {
+router.post('/:id/rewards', (req, res) => {
     const { title, description = '', cost_points, stock = 0, active = 1 } = req.body || {};
     if (!title || typeof cost_points !== 'number') return res.status(400).json({ error: 'title and numeric cost_points are required' });
     const now = nowIso();
-    const info = db.prepare('INSERT INTO rewards (title, description, cost_points, stock, active, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(title, description, cost_points, stock, active ? 1 : 0, now);
+    const info = db.prepare('INSERT INTO rewards (title, description, cost_points, stock, active, created_at, campaign_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(title, description, cost_points, stock, active ? 1 : 0, now, req.params.id);
     const row = db.prepare('SELECT * FROM rewards WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json({ reward: row });
 });

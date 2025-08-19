@@ -37,10 +37,13 @@ export default function Campaigns() {
 	}
 	function loadEducation() { if (!selected) { setResources([]); return; } fetch(`/api/campaigns/${selected}/education`).then(r => r.json()).then(d => setResources(d.resources)); }
 	function loadDrives() { if (!selected) { setDrives([]); return; } fetch(`/api/campaigns/${selected}/drives`).then(r => r.json()).then(d => setDrives(d.drives)); }
-	function loadRewards() { fetch('/api/campaigns/rewards').then(r => r.json()).then(d => setRewards(d.rewards)); }
+	function loadRewards() {
+		if (!selected) { setRewards([]); return; }
+		fetch(`/api/campaigns/${selected}/rewards`).then(r => r.json()).then(d => setRewards(d.rewards));
+	}
 
-	useEffect(() => { loadCampaigns(); loadLeaderboard(); loadRewards(); }, []);
-	useEffect(() => { loadLeaderboard(); loadEducation(); loadDrives(); }, [selected]);
+	useEffect(() => { loadCampaigns(); loadLeaderboard(); }, []);
+	useEffect(() => { loadLeaderboard(); loadEducation(); loadDrives(); loadRewards(); }, [selected]);
 
 	function submitCampaign(e) {
 		e.preventDefault();
@@ -84,7 +87,7 @@ export default function Campaigns() {
 	function addReward(e) {
 		e.preventDefault();
 		const payload = { ...rewardForm, cost_points: Number(rewardForm.cost_points || 0), stock: Number(rewardForm.stock || 0) };
-		fetch('/api/campaigns/rewards', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		fetch(`/api/campaigns/${selected}/rewards`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(() => { setRewardForm({ title: '', description: '', cost_points: '', stock: '' }); loadRewards(); });
 	}
 	function redeemReward(e) {
