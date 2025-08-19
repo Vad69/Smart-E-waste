@@ -13,7 +13,7 @@ router.get('/summary', (req, res) => {
 	const recyclableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE recyclable = 1').get().c;
 	const reusableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE reusable = 1').get().c;
 
-	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
+	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled','refurbished','disposed')").get().w;
 	const recoveryRate = totalWeight > 0 ? pickedUpWeight / totalWeight : 0;
 
 	res.json({ totalItems, totalWeight, byStatus, byCategory, hazardousCount, recyclableCount, reusableCount, recoveryRate });
@@ -45,6 +45,39 @@ router.get('/trends', (req, res) => {
 	}
 });
 
+router.get('/status-trends', (req, res) => {
+	const { granularity = 'month', from, to } = req.query;
+	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
+	const toDate = to ? dayjs(to) : dayjs();
+	if (granularity === 'day') {
+		const rows = db.prepare(`
+			SELECT substr(updated_at,1,10) as d,
+				IFNULL(SUM(CASE WHEN status='picked_up' THEN weight_kg ELSE 0 END),0) as picked_up_w,
+				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg ELSE 0 END),0) as recycled_w,
+				IFNULL(SUM(CASE WHEN status='refurbished' THEN weight_kg ELSE 0 END),0) as refurbished_w,
+				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg ELSE 0 END),0) as disposed_w
+			FROM items
+			WHERE updated_at BETWEEN ? AND ?
+			GROUP BY d
+			ORDER BY d ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ daily: rows });
+	} else {
+		const rows = db.prepare(`
+			SELECT substr(updated_at,1,7) as ym,
+				IFNULL(SUM(CASE WHEN status='picked_up' THEN weight_kg ELSE 0 END),0) as picked_up_w,
+				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg ELSE 0 END),0) as recycled_w,
+				IFNULL(SUM(CASE WHEN status='refurbished' THEN weight_kg ELSE 0 END),0) as refurbished_w,
+				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg ELSE 0 END),0) as disposed_w
+			FROM items
+			WHERE updated_at BETWEEN ? AND ?
+			GROUP BY ym
+			ORDER BY ym ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ monthly: rows });
+	}
+});
+
 router.get('/segments', (req, res) => {
 	const byDept = db.prepare(`
 		SELECT d.name as department, COUNT(i.id) as c, IFNULL(SUM(i.weight_kg),0) as w
@@ -62,11 +95,47 @@ router.get('/segments', (req, res) => {
 });
 
 router.get('/impact', (req, res) => {
-	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
-	const hazardousWeight = db.prepare('SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE hazardous = 1').get().w;
-	const co2eSavedKg = recycledWeight * 1.5;
-	const hazardousPreventedKg = hazardousWeight * 0.2;
-	res.json({ recycledWeight, co2eSavedKg, hazardousPreventedKg });
+	const processedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('recycled','refurbished','disposed')").get().w;
+	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'recycled'").get().w;
+	const refurbishedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'refurbished'").get().w;
+	const disposedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'disposed'").get().w;
+	const refurbishedCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE status = 'refurbished'").get().c;
+	const reusablePotentialCount = db.prepare("SELECT COUNT(*) as c FROM items WHERE category_key = 'reusable'").get().c;
+	const impactedUsers = db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_scores').get().c;
+	const from30 = dayjs().subtract(30, 'day').toISOString();
+	const impactedUsers30d = db.prepare('SELECT COUNT(DISTINCT user_id) as c FROM user_scores WHERE created_at >= ?').get(from30).c;
+	const co2eSavedKg = recycledWeight * 1.5 + refurbishedWeight * 3.0;
+	const hazardousPreventedKg = disposedWeight * 0.5;
+	res.json({ processedWeight, recycledWeight, refurbishedWeight, disposedWeight, refurbishedCount, reusablePotentialCount, impactedUsers, impactedUsers30d, co2eSavedKg, hazardousPreventedKg });
+});
+
+router.get('/impact-trends', (req, res) => {
+	const { granularity = 'month', from, to } = req.query;
+	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
+	const toDate = to ? dayjs(to) : dayjs();
+	if (granularity === 'day') {
+		const rows = db.prepare(`
+			SELECT substr(updated_at,1,10) as d,
+				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg*1.5 WHEN status='refurbished' THEN weight_kg*3.0 ELSE 0 END),0) as co2e,
+				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg*0.5 ELSE 0 END),0) as haz
+			FROM items
+			WHERE updated_at BETWEEN ? AND ?
+			GROUP BY d
+			ORDER BY d ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ daily: rows });
+	} else {
+		const rows = db.prepare(`
+			SELECT substr(updated_at,1,7) as ym,
+				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg*1.5 WHEN status='refurbished' THEN weight_kg*3.0 ELSE 0 END),0) as co2e,
+				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg*0.5 ELSE 0 END),0) as haz
+			FROM items
+			WHERE updated_at BETWEEN ? AND ?
+			GROUP BY ym
+			ORDER BY ym ASC
+		`).all(fromDate.toISOString(), toDate.toISOString());
+		return res.json({ monthly: rows });
+	}
 });
 
 export default router;

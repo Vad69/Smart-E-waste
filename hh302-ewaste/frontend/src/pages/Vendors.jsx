@@ -4,18 +4,28 @@ export default function Vendors() {
 	const [vendors, setVendors] = useState([]);
 	const [types, setTypes] = useState(['recycler','hazardous','refurbisher']);
 	const [typeFilter, setTypeFilter] = useState('');
+	const [includeInactive, setIncludeInactive] = useState(false);
 	const [form, setForm] = useState({ name: '', type: 'recycler', license_no: '' });
 
 	function load() {
-		const q = typeFilter ? `?type=${typeFilter}` : '';
-		fetch('/api/vendors' + q).then(r => r.json()).then(d => setVendors(d.vendors));
+		const params = new URLSearchParams();
+		if (typeFilter) params.set('type', typeFilter);
+		if (includeInactive) params.set('include_inactive', '1');
+		fetch('/api/vendors?' + params.toString()).then(r => r.json()).then(d => setVendors(d.vendors));
 	}
-	useEffect(() => { load(); }, [typeFilter]);
+	useEffect(() => { load(); }, [typeFilter, includeInactive]);
 
 	function submit(e) {
 		e.preventDefault();
 		fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
 			.then(r => r.json()).then(() => { setForm({ name: '', type: 'recycler', license_no: '' }); load(); });
+	}
+
+	function removeVendor(id) {
+		fetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(() => load());
+	}
+	function restoreVendor(id) {
+		fetch(`/api/vendors/${id}/restore`, { method: 'POST' }).then(() => load());
 	}
 
 	return (
@@ -33,11 +43,14 @@ export default function Vendors() {
 			</div>
 
 			<div className="card">
-				<div className="row" style={{ marginBottom: 8 }}>
+				<div className="row" style={{ marginBottom: 8, gap: 8 }}>
 					<select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
 						<option value="">All types</option>
 						{types.map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
+					<label className="row" style={{ gap: 6 }}>
+						<input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} /> Include inactive
+					</label>
 				</div>
 				<table className="table">
 					<thead>
@@ -45,6 +58,8 @@ export default function Vendors() {
 							<th>Name</th>
 							<th>Type</th>
 							<th>License</th>
+							<th>Status</th>
+							<th>Actions</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -53,6 +68,14 @@ export default function Vendors() {
 								<td>{v.name}</td>
 								<td>{v.type}</td>
 								<td className="mono">{v.license_no || '—'}</td>
+								<td>{v.active ? 'active' : 'inactive'}</td>
+								<td className="row">
+									{v.active ? (
+										<button className="btn secondary" onClick={() => removeVendor(v.id)}>Remove</button>
+									) : (
+										<button className="btn" onClick={() => restoreVendor(v.id)}>Restore</button>
+									)}
+								</td>
 							</tr>
 						))}
 					</tbody>

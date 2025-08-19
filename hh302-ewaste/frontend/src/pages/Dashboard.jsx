@@ -4,6 +4,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 export default function Dashboard() {
 	const [summary, setSummary] = useState(null);
 	const [trends, setTrends] = useState([]);
+	const [statusTrends, setStatusTrends] = useState([]);
+	const [impactTrends, setImpactTrends] = useState([]);
 	const [granularity, setGranularity] = useState('month');
 	const [segments, setSegments] = useState({ byDept: [], byCategory: [] });
 	const [impact, setImpact] = useState(null);
@@ -11,6 +13,8 @@ export default function Dashboard() {
 	useEffect(() => {
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
 		fetch(`/api/analytics/trends?granularity=${granularity}`).then(r => r.json()).then(d => setTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/status-trends?granularity=${granularity}`).then(r => r.json()).then(d => setStatusTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/impact-trends?granularity=${granularity}`).then(r => r.json()).then(d => setImpactTrends(d.daily || d.monthly || []));
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
 	}, [granularity]);
@@ -61,6 +65,23 @@ export default function Dashboard() {
 				</ResponsiveContainer>
 			</div>
 
+			<div className="card" style={{ height: 360 }}>
+				<h3>Status Outcomes Over Time (Weight)</h3>
+				<ResponsiveContainer width="100%" height="100%">
+					<LineChart data={statusTrends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+						<CartesianGrid strokeDasharray="3 3" />
+						<XAxis dataKey={xKey} />
+						<YAxis domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
+						<Tooltip />
+						<Legend />
+						<Line type="monotone" dataKey="picked_up_w" name="Picked up (kg)" stroke="#f59e0b" dot={false} />
+						<Line type="monotone" dataKey="recycled_w" name="Recycled (kg)" stroke="#10b981" dot={false} />
+						<Line type="monotone" dataKey="refurbished_w" name="Refurbished (kg)" stroke="#8b5cf6" dot={false} />
+						<Line type="monotone" dataKey="disposed_w" name="Disposed (kg)" stroke="#ef4444" dot={false} />
+					</LineChart>
+				</ResponsiveContainer>
+			</div>
+
 			<div className="grid cols-3">
 				<div className="card" style={{ height: 320 }}>
 					<h3>By Department</h3>
@@ -86,10 +107,19 @@ export default function Dashboard() {
 						</PieChart>
 					</ResponsiveContainer>
 				</div>
-				<div className="card">
-					<h3>Impact</h3>
-					<div>CO2e saved: <b>{impact?.co2eSavedKg?.toFixed?.(1) ?? '—'}</b> kg</div>
-					<div>Hazardous prevented: <b>{impact?.hazardousPreventedKg?.toFixed?.(1) ?? '—'}</b> kg</div>
+				<div className="card" style={{ height: 360 }}>
+					<h3>Impact Over Time</h3>
+					<ResponsiveContainer width="100%" height="100%">
+						<LineChart data={impactTrends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+							<CartesianGrid strokeDasharray="3 3" />
+							<XAxis dataKey={xKey} />
+							<YAxis domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
+							<Tooltip />
+							<Legend />
+							<Line type="monotone" dataKey="co2e" name="CO2e saved (kg)" stroke="#2563eb" dot={false} />
+							<Line type="monotone" dataKey="haz" name="Hazardous prevented (kg)" stroke="#14b8a6" dot={false} />
+						</LineChart>
+					</ResponsiveContainer>
 				</div>
 			</div>
 		</div>

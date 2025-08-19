@@ -2,7 +2,8 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
-import { generateQrSvg } from '../services/qr.js';
+import { generateQrSvg, generateQrPngBuffer } from '../services/qr.js';
+import { formatInTz, nowInTz } from '../time.js';
 
 const router = express.Router();
 
@@ -149,15 +150,43 @@ router.put('/:id', (req, res) => {
 router.post('/:id/status', (req, res) => {
 	const { status, notes = '' } = req.body || {};
 	if (!status) return res.status(400).json({ error: 'status is required' });
+	const valid = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 		.run(req.params.id, `status_${status}`, notes, now);
+
+	// Auto-update related pickups
+	updatePickupsForItem(Number(req.params.id), now);
+
 	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	res.json({ item: mapItem(row) });
 });
+
+function updatePickupsForItem(itemId, now) {
+	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(itemId).map(r => r.pickup_id);
+	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
+	for (const pickupId of pickupIds) {
+		const pickup = db.prepare('SELECT * FROM pickups WHERE id = ?').get(pickupId);
+		if (!pickup) continue;
+		const rows = db.prepare('SELECT i.id, i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
+		if (rows.length === 0) continue;
+		const allFinal = rows.every(r => finalStatuses.has(r.status));
+		const newStatus = allFinal ? 'completed' : 'scheduled';
+		if (pickup.status !== newStatus) {
+			db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(newStatus, pickupId);
+			if (newStatus === 'completed') {
+				const insertEvent = db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)');
+				for (const r of rows) {
+					insertEvent.run(r.id, 'pickup_completed', `Pickup ${pickupId} completed`, now);
+				}
+			}
+		}
+	}
+}
 
 router.get('/:id/events', (req, res) => {
 	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at DESC').all(req.params.id);
@@ -194,25 +223,40 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-		const now = new Date().toISOString();
-		const label = `<?xml version="1.0" encoding="UTF-8"?>
-			<svg xmlns="http://www.w3.org/2000/svg" width="${labelWidth}" height="${labelHeight}">
-				<rect width="100%" height="100%" fill="#ffffff"/>
-				<svg x="16" y="16" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${qrInner}</svg>
-				<g font-family="Arial, Helvetica, sans-serif" fill="#111827">
-					<text x="${textX}" y="36" font-size="16" font-weight="700">${escapeXml(row.name || 'Item')}</text>
-					<text x="${textX}" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
-					<text x="${textX}" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
-					<text x="${textX}" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
-					<text x="${textX}" y="114" font-size="12">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x="${textX}" y="132" font-size="12">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
-					<text x="${textX}" y="150" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x="${textX}" y="168" font-size="12">Created: ${escapeXml(row.created_at)}</text>
-					<text x="${textX}" y="186" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
-					<text x="16" y="${labelHeight - 16}" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
+		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
+				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
+				<svg x=\"16\" y=\"16\" width=\"${size}\" height=\"${size}\" viewBox=\"0 0 ${size} ${size}\">${qrInner}</svg>
+				<g font-family=\"Arial, Helvetica, sans-serif\" fill=\"#111827\">
+					<text x=\"${textX}\" y=\"36\" font-size=\"16\" font-weight=\"700\">${escapeXml(row.name || 'Item')}</text>
+					<text x=\"${textX}\" y=\"60\" font-size=\"12\">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"78\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
+					<text x=\"${textX}\" y=\"96\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"114\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"150\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Created: ${escapeXml(formatInTz(row.created_at))}</text>
+					<text x=\"${textX}\" y=\"186\" font-size=\"12\">Updated: ${escapeXml(formatInTz(row.updated_at))}</text>
+					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(nowInTz())}</text>
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
+	} catch (e) {
+		next(e);
+	}
+});
+
+router.get('/:id/label.png', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const size = Math.max(400, Math.min(1000, Number(req.query.size) || 800));
+		const canvasWidth = size + 500;
+		const canvasHeight = Math.max(size + 120, 500);
+		const png = await generateQrPngBuffer(row.qr_uid, size);
+		// Compose a simple PNG by embedding QR alone; metadata text is handled in SVG label.
+		res.setHeader('Content-Type', 'image/png');
+		res.send(png);
 	} catch (e) {
 		next(e);
 	}
