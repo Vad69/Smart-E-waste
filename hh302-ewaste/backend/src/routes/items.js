@@ -224,7 +224,7 @@ function updatePickupsForItem(itemId, now) {
 }
 
 router.get('/:id/events', (req, res) => {
-	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at DESC').all(req.params.id);
+	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
 	res.json({ events: rows });
 });
 
@@ -253,11 +253,27 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
 		if (!row) return res.status(404).send('Not found');
 		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
-		const labelWidth = size + 260;
-		const labelHeight = Math.max(size + 80, 320);
+		const labelWidth = size + 320;
+		const labelHeight = Math.max(size + 180, 440);
 		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+		const ageBase = row.purchase_date || row.created_at;
+		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
+		const weightStr = (row.weight_kg || 0).toString();
+
+		// Build timeline from events
+		const evs = db.prepare('SELECT event_type, created_at FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
+		const findAt = (k) => evs.find(e => e.event_type === k)?.created_at || null;
+		const reportedAt = findAt('reported') || row.created_at;
+		const scheduledAt = findAt('scheduled_for_pickup') || null;
+		const pickedAt = findAt('status_picked_up') || null;
+		const recycledAt = findAt('status_recycled') || null;
+		const refurbAt = findAt('status_refurbished') || null;
+		const disposedAt = findAt('status_disposed') || null;
+		const processedLabel = recycledAt ? 'Recycled' : refurbAt ? 'Refurbished' : disposedAt ? 'Disposed' : null;
+		const processedAt = recycledAt || refurbAt || disposedAt || null;
+
 		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
 				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
@@ -268,11 +284,18 @@ router.get('/:id/label.svg', async (req, res, next) => {
 					<text x=\"${textX}\" y=\"78\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
 					<text x=\"${textX}\" y=\"96\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
 					<text x=\"${textX}\" y=\"114\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
-					<text x=\"${textX}\" y=\"150\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Created: ${escapeXml(formatInTz(row.created_at))}</text>
-					<text x=\"${textX}\" y=\"186\" font-size=\"12\">Updated: ${escapeXml(formatInTz(row.updated_at))}</text>
-					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(nowInTz())}</text>
+					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Weight: ${escapeXml(weightStr)} kg</text>
+					<text x=\"${textX}\" y=\"150\" font-size=\"12\">Age: ${escapeXml(ageDays != null ? ageDays + ' days' : 'N/A')}</text>
+					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"194\" font-size=\"12\" font-weight=\"700\">Timeline</text>
+					<text x=\"${textX}\" y=\"212\" font-size=\"12\">Reported: ${escapeXml(reportedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"230\" font-size=\"12\">Scheduled: ${escapeXml(scheduledAt || '—')}</text>
+					<text x=\"${textX}\" y=\"248\" font-size=\"12\">Picked up: ${escapeXml(pickedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"266\" font-size=\"12\">${escapeXml(processedLabel || 'Processed')}: ${escapeXml(processedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"292\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"310\" font-size=\"12\">Created: ${escapeXml(row.created_at)}</text>
+					<text x=\"${textX}\" y=\"328\" font-size=\"12\">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(dayjs().format('YYYY-MM-DD HH:mm:ss'))}</text>
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
