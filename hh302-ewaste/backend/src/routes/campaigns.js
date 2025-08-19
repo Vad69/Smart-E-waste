@@ -23,8 +23,10 @@ router.get('/', (req, res) => {
 
 router.post('/', (req, res) => {
 	const now = nowIso();
-	const { title, description = '', start_date = null, end_date = null, type = 'awareness', points = 0 } = req.body || {};
+	let { title, description = '', start_date = null, end_date = null, type = 'awareness', points = 0 } = req.body || {};
 	if (!title) return res.status(400).json({ error: 'title is required' });
+	const allowed = new Set(['awareness','challenge']);
+	if (!allowed.has(type)) type = 'awareness';
 	const info = db.prepare('INSERT INTO campaigns (title, description, start_date, end_date, type, points, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
 		.run(title, description, start_date, end_date, type, points, now);
 	const row = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(info.lastInsertRowid);
@@ -34,10 +36,13 @@ router.post('/', (req, res) => {
 router.get('/:id/scores', (req, res) => {
 	const top = Number(req.query.top || 10);
 	const rows = db.prepare(`
-		SELECT user_id, user_name, SUM(points) as points
+		SELECT user_id,
+		       MAX(user_name) as user_name,
+		       MAX(department_name) as department_name,
+		       SUM(points) as points
 		FROM user_scores
 		WHERE campaign_id = ?
-		GROUP BY user_id, user_name
+		GROUP BY user_id
 		ORDER BY points DESC
 		LIMIT ?
 	`).all(req.params.id, top);
@@ -45,19 +50,26 @@ router.get('/:id/scores', (req, res) => {
 });
 
 router.post('/:id/award', (req, res) => {
-	const { user_id, user_name, points } = req.body || {};
+	const { user_id, user_name, department_name = null, points } = req.body || {};
 	if (!user_id || !points) return res.status(400).json({ error: 'user_id and points are required' });
 	const now = nowIso();
-	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?)')
-		.run(user_id, user_name || null, points, req.params.id, now);
+	const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+	const canonicalName = existing?.user_name || firstName;
+	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+		.run(user_id, canonicalName, points, req.params.id, now, department_name);
 	res.status(201).json({ ok: true });
 });
 
 router.get('/scoreboard/all', (req, res) => {
 	const rows = db.prepare(`
-		SELECT user_id, user_name, SUM(points) as points
+		SELECT user_id,
+		       MAX(user_name) as user_name,
+		       MAX(department_name) as department_name,
+		       SUM(points) as points
 		FROM user_scores
-		GROUP BY user_id, user_name
+		GROUP BY user_id
 		ORDER BY points DESC
 		LIMIT 20
 	`).all();
@@ -91,10 +103,26 @@ router.post('/education/:resourceId/complete', (req, res) => {
     db.prepare('INSERT INTO education_completions (resource_id, user_id, user_name, department_name, points_awarded, completed_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(req.params.resourceId, user_id, user_name, department_name, r.points || 0, now);
     if ((r.points || 0) > 0 && r.campaign_id) {
+        const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(user_id);
+        const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+        const canonicalName = existing?.user_name || firstName;
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(user_id, user_name, r.points || 0, r.campaign_id, now, department_name);
+            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, department_name);
     }
     res.status(201).json({ ok: true, points: r.points || 0 });
+});
+
+// Delete a single resource and its completions
+router.delete('/education/:resourceId', (req, res) => {
+    const id = Number(req.params.resourceId);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM education_completions WHERE resource_id = ?').run(id);
+        db.prepare('DELETE FROM education_resources WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ ok: true });
 });
 
 // Drives
@@ -104,11 +132,11 @@ router.get('/:id/drives', (req, res) => {
 });
 
 router.post('/:id/drives', (req, res) => {
-    const { title, description = '', start_date = null, end_date = null, location = '', capacity = null, points = 0 } = req.body || {};
+    const { title, description = '', start_date = null, end_date = null, location = '', points = 0 } = req.body || {};
     if (!title) return res.status(400).json({ error: 'title is required' });
     const now = nowIso();
-    const info = db.prepare('INSERT INTO drives (title, description, start_date, end_date, location, capacity, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
-        .run(title, description, start_date, end_date, location, capacity, Number(points || 0), req.params.id, now);
+    const info = db.prepare('INSERT INTO drives (title, description, start_date, end_date, location, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(title, description, start_date, end_date, location, Number(points || 0), req.params.id, now);
     const row = db.prepare('SELECT * FROM drives WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json({ drive: row });
 });
@@ -133,8 +161,12 @@ router.post('/drives/:driveId/attend', (req, res) => {
     db.prepare('UPDATE drive_registrations SET attended = 1, attended_at = ? WHERE id = ?').run(now, reg.id);
     const d = db.prepare('SELECT * FROM drives WHERE id = ?').get(req.params.driveId);
     if ((d.points || 0) > 0 && d.campaign_id) {
+        const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(reg.user_id);
+        const firstName = String(reg.user_name || '').trim().split(/\s+/)[0] || null;
+        const canonicalName = existing?.user_name || firstName;
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(reg.user_id, reg.user_name, d.points || 0, d.campaign_id, now, reg.department_name);
+            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, reg.department_name);
     }
     res.json({ ok: true });
 });
@@ -171,5 +203,33 @@ router.post('/rewards/:id/redeem', (req, res) => {
     db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
     db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
         .run(req.params.id, user_id, user_name, department_name, now);
+    res.json({ ok: true });
+});
+
+// Delete a reward and its redemptions
+router.delete('/rewards/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM redemptions WHERE reward_id = ?').run(id);
+        db.prepare('DELETE FROM rewards WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ ok: true });
+});
+
+// Delete a campaign and cascade related data
+router.delete('/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM education_completions WHERE resource_id IN (SELECT id FROM education_resources WHERE campaign_id = ?)').run(id);
+        db.prepare('DELETE FROM education_resources WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM drive_registrations WHERE drive_id IN (SELECT id FROM drives WHERE campaign_id = ?)').run(id);
+        db.prepare('DELETE FROM drives WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM user_scores WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM campaigns WHERE id = ?').run(id);
+    });
+    tx();
     res.json({ ok: true });
 });

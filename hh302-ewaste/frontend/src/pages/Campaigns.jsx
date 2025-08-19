@@ -18,7 +18,7 @@ export default function Campaigns() {
 	const [award, setAward] = useState({ user_id: '', user_name: '', department_name: '', points: '' });
 
 	const [resources, setResources] = useState([]);
-	const [resForm, setResForm] = useState({ title: '', content_url: '', content_type: 'article', points: 10 });
+	const [resForm, setResForm] = useState({ title: '', content_type: 'article', points: 10 });
 	const [completeForm, setCompleteForm] = useState({ resource_id: '', user_id: '', user_name: '', department_name: '' });
 
 	const [drives, setDrives] = useState([]);
@@ -102,7 +102,7 @@ export default function Campaigns() {
 					<input className="input" placeholder="Title" value={form.title} onChange={e => setForm(v => ({ ...v, title: e.target.value }))} required />
 					<input className="input" placeholder="Description" value={form.description} onChange={e => setForm(v => ({ ...v, description: e.target.value }))} />
 					<select value={form.type} onChange={e => setForm(v => ({ ...v, type: e.target.value }))}>
-						{['awareness','challenge','drive','reward'].map(t => <option key={t} value={t}>{t}</option>)}
+						{['awareness','challenge'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
 					<div style={{ display: 'flex', flexDirection: 'column' }}>
 						<label className="muted" style={{ fontSize: 12 }}>Start Date</label>
@@ -123,6 +123,7 @@ export default function Campaigns() {
 								<th>Start Date</th>
 								<th>End Date</th>
 								<th>Description</th>
+								<th></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -130,9 +131,12 @@ export default function Campaigns() {
 								<tr key={c.id}>
 									<td>{c.title}</td>
 									<td className="mono">{c.type || '—'}</td>
-									<td className="mono">{c.start_date || '—'}</td>
-									<td className="mono">{c.end_date || '—'}</td>
+									<td className="mono">{(c.start_date || '').slice(0,10) || '—'}</td>
+									<td className="mono">{(c.end_date || '').slice(0,10) || '—'}</td>
 									<td>{c.description || '—'}</td>
+									<td>
+										<button className="btn secondary" onClick={() => { if (confirm('Delete this campaign and all associated data?')) { fetch(`/api/campaigns/${c.id}`, { method: 'DELETE' }).then(() => { setCampaigns(prev => prev.filter(x => x.id !== c.id)); }); } }}>Delete</button>
+									</td>
 								</tr>
 							))}
 						</tbody>
@@ -150,21 +154,42 @@ export default function Campaigns() {
 				</div>
 			</Section>
 
-			<Section title="Education (Sustainability resources)">
+			<Section title="Resources (Awareness & Engagement)">
 				<form onSubmit={addResource} className="grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
 					<input className="input" placeholder="Title" value={resForm.title} onChange={e => setResForm(v => ({ ...v, title: e.target.value }))} />
-					<input className="input" placeholder="Content URL" value={resForm.content_url} onChange={e => setResForm(v => ({ ...v, content_url: e.target.value }))} />
 					<select value={resForm.content_type} onChange={e => setResForm(v => ({ ...v, content_type: e.target.value }))}>
-						{['article','video','quiz','guide'].map(t => <option key={t} value={t}>{t}</option>)}
+						{['article','videography','photography','editor','volunteer','quiz','seminar'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
-					<input className="input" type="number" placeholder="Points" value={resForm.points} onChange={e => setResForm(v => ({ ...v, points: e.target.value }))} />
+					<div style={{ display: 'flex', flexDirection: 'column' }}>
+						<label className="muted" style={{ fontSize: 12 }}>Points</label>
+						<input className="input" type="number" placeholder="Points" value={resForm.points} onChange={e => setResForm(v => ({ ...v, points: e.target.value }))} />
+					</div>
 					<button className="btn" type="submit" disabled={!selected}>Add Resource</button>
 				</form>
 				<div style={{ marginTop: 8 }}>
 					{resources.length === 0 ? <div className="muted">No resources yet.</div> : (
-						<ul>
-							{resources.map(r => <li key={r.id}><span className="mono">[{r.content_type}]</span> {r.title} {r.points ? `(+${r.points})` : ''} {r.content_url && <a href={r.content_url} target="_blank" rel="noreferrer">open</a>}</li>)}
-						</ul>
+						<table className="table">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th>Type</th>
+									<th>Points</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								{resources.map(r => (
+									<tr key={r.id}>
+										<td>{r.title}</td>
+										<td className="mono">{r.content_type}</td>
+										<td className="mono">{r.points || 0}</td>
+										<td>
+											<button className="btn secondary" onClick={() => { if (confirm('Delete this resource?')) { fetch(`/api/campaigns/education/${r.id}`, { method: 'DELETE' }).then(() => setResources(prev => prev.filter(x => x.id !== r.id))); } }}>Delete</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					)}
 				</div>
 				<form onSubmit={completeResource} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
@@ -240,18 +265,30 @@ export default function Campaigns() {
 				</form>
 				<div style={{ marginTop: 8 }}>
 					{rewards.length === 0 ? <div className="muted">No rewards yet.</div> : (
-						<div className="row wrap" style={{ gap: 12 }}>
-							{rewards.map(r => (
-								<div key={r.id} className="card" style={{ minWidth: 240 }}>
-									<div className="row" style={{ justifyContent: 'space-between' }}>
-										<strong>{r.title}</strong>
-										<span className="mono">{r.cost_points} pts</span>
-									</div>
-									<div className="muted">{r.description}</div>
-									<div className="muted">Stock: {r.stock}</div>
-								</div>
-							))}
-						</div>
+						<table className="table">
+							<thead>
+								<tr>
+									<th>Title</th>
+									<th>Cost</th>
+									<th>Stock</th>
+									<th>Description</th>
+									<th></th>
+								</tr>
+							</thead>
+							<tbody>
+								{rewards.map(r => (
+									<tr key={r.id}>
+										<td>{r.title}</td>
+										<td className="mono">{r.cost_points} pts</td>
+										<td className="mono">{r.stock}</td>
+										<td className="muted">{r.description}</td>
+										<td>
+											<button className="btn secondary" onClick={() => { if (confirm('Delete this reward?')) { fetch(`/api/campaigns/rewards/${r.id}`, { method: 'DELETE' }).then(() => loadRewards()); } }}>Delete</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					)}
 				</div>
 				<form onSubmit={redeemReward} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
@@ -271,6 +308,7 @@ export default function Campaigns() {
 					<thead>
 						<tr>
 							<th>User</th>
+							<th>User ID</th>
 							<th>Dept</th>
 							<th>Points</th>
 						</tr>
@@ -279,6 +317,7 @@ export default function Campaigns() {
 						{leaderboard.map(e => (
 							<tr key={e.user_id}>
 								<td>{e.user_name || e.user_id}</td>
+								<td className="mono">{e.user_id}</td>
 								<td className="mono">{e.department_name || '—'}</td>
 								<td className="mono">{e.points}</td>
 							</tr>
