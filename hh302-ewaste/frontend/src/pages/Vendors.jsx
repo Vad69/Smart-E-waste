@@ -11,7 +11,10 @@ export default function Vendors() {
 		const params = new URLSearchParams();
 		if (typeFilter) params.set('type', typeFilter);
 		if (includeInactive) params.set('include_inactive', '1');
-		fetch('/api/vendors?' + params.toString()).then(r => r.json()).then(d => setVendors(d.vendors));
+		fetch('/api/vendors?' + params.toString())
+			.then(r => r.json())
+			.then(d => setVendors((d && Array.isArray(d.vendors)) ? d.vendors : []))
+			.catch(() => setVendors([]));
 	}
 	useEffect(() => { load(); }, [typeFilter, includeInactive]);
 
@@ -19,7 +22,7 @@ export default function Vendors() {
 		e.preventDefault();
 		const payload = { ...form, capacity_tpm: form.capacity_tpm ? Number(form.capacity_tpm) : undefined };
 		fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-			.then(r => r.json()).then(() => { setForm({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '' }); load(); });
+			.then(r => r.json()).then(() => { setForm({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '', contact_name: '', phone: '', email: '', address: '' }); load(); });
 	}
 
 	function removeVendor(id) { fetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
@@ -32,7 +35,7 @@ export default function Vendors() {
 				<form onSubmit={submit} className="grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
 					<input className="input" placeholder="Name" value={form.name} onChange={e => setForm(v => ({ ...v, name: e.target.value }))} required />
 					<select value={form.type} onChange={e => setForm(v => ({ ...v, type: e.target.value }))}>
-						{types.map(t => <option key={t} value={t}>{t}</option>)}
+						{(types || []).map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
 					<input className="input" placeholder="License No" value={form.license_no} onChange={e => setForm(v => ({ ...v, license_no: e.target.value }))} />
 					<input className="input" placeholder="Authorization No" value={form.authorization_no} onChange={e => setForm(v => ({ ...v, authorization_no: e.target.value }))} />
@@ -53,7 +56,7 @@ export default function Vendors() {
 				<div className="row" style={{ marginBottom: 8, gap: 8 }}>
 					<select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
 						<option value="">All types</option>
-						{types.map(t => <option key={t} value={t}>{t}</option>)}
+						{(types || []).map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
 					<label className="row" style={{ gap: 6 }}>
 						<input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} /> Include inactive
@@ -75,7 +78,7 @@ export default function Vendors() {
 						</tr>
 					</thead>
 					<tbody>
-						{vendors.map(v => (
+						{(vendors || []).map(v => (
 							<tr key={v.id}>
 								<td>{v.name}</td>
 								<td>{v.type}</td>
