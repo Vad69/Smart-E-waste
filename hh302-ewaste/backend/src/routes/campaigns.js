@@ -65,3 +65,111 @@ router.get('/scoreboard/all', (req, res) => {
 });
 
 export default router;
+
+// Education resources
+router.get('/:id/education', (req, res) => {
+    const rows = db.prepare('SELECT * FROM education_resources WHERE campaign_id = ? ORDER BY created_at DESC').all(req.params.id);
+    res.json({ resources: rows });
+});
+
+router.post('/:id/education', (req, res) => {
+    const { title, content_url = null, content_type = 'article', points = 0 } = req.body || {};
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const now = nowIso();
+    const info = db.prepare('INSERT INTO education_resources (title, content_url, content_type, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(title, content_url, content_type, Number(points || 0), req.params.id, now);
+    const row = db.prepare('SELECT * FROM education_resources WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json({ resource: row });
+});
+
+router.post('/education/:resourceId/complete', (req, res) => {
+    const { user_id, user_name = null, department_name = null } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    const r = db.prepare('SELECT * FROM education_resources WHERE id = ?').get(req.params.resourceId);
+    if (!r) return res.status(404).json({ error: 'resource not found' });
+    const now = nowIso();
+    db.prepare('INSERT INTO education_completions (resource_id, user_id, user_name, department_name, points_awarded, completed_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(req.params.resourceId, user_id, user_name, department_name, r.points || 0, now);
+    if ((r.points || 0) > 0 && r.campaign_id) {
+        db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(user_id, user_name, r.points || 0, r.campaign_id, now, department_name);
+    }
+    res.status(201).json({ ok: true, points: r.points || 0 });
+});
+
+// Drives
+router.get('/:id/drives', (req, res) => {
+    const rows = db.prepare('SELECT * FROM drives WHERE campaign_id = ? ORDER BY start_date DESC, created_at DESC').all(req.params.id);
+    res.json({ drives: rows });
+});
+
+router.post('/:id/drives', (req, res) => {
+    const { title, description = '', start_date = null, end_date = null, location = '', capacity = null, points = 0 } = req.body || {};
+    if (!title) return res.status(400).json({ error: 'title is required' });
+    const now = nowIso();
+    const info = db.prepare('INSERT INTO drives (title, description, start_date, end_date, location, capacity, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+        .run(title, description, start_date, end_date, location, capacity, Number(points || 0), req.params.id, now);
+    const row = db.prepare('SELECT * FROM drives WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json({ drive: row });
+});
+
+router.post('/drives/:driveId/register', (req, res) => {
+    const { user_id, user_name = null, department_name = null } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    const d = db.prepare('SELECT * FROM drives WHERE id = ?').get(req.params.driveId);
+    if (!d) return res.status(404).json({ error: 'drive not found' });
+    const now = nowIso();
+    db.prepare('INSERT INTO drive_registrations (drive_id, user_id, user_name, department_name, registered_at) VALUES (?, ?, ?, ?, ?)')
+        .run(req.params.driveId, user_id, user_name, department_name, now);
+    res.status(201).json({ ok: true });
+});
+
+router.post('/drives/:driveId/attend', (req, res) => {
+    const { user_id } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    const reg = db.prepare('SELECT * FROM drive_registrations WHERE drive_id = ? AND user_id = ?').get(req.params.driveId, user_id);
+    if (!reg) return res.status(404).json({ error: 'registration not found' });
+    const now = nowIso();
+    db.prepare('UPDATE drive_registrations SET attended = 1, attended_at = ? WHERE id = ?').run(now, reg.id);
+    const d = db.prepare('SELECT * FROM drives WHERE id = ?').get(req.params.driveId);
+    if ((d.points || 0) > 0 && d.campaign_id) {
+        db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+            .run(reg.user_id, reg.user_name, d.points || 0, d.campaign_id, now, reg.department_name);
+    }
+    res.json({ ok: true });
+});
+
+// Rewards store
+router.get('/rewards', (req, res) => {
+    const rows = db.prepare('SELECT * FROM rewards WHERE active = 1 ORDER BY created_at DESC').all();
+    res.json({ rewards: rows });
+});
+
+router.post('/rewards', (req, res) => {
+    const { title, description = '', cost_points, stock = 0, active = 1 } = req.body || {};
+    if (!title || typeof cost_points !== 'number') return res.status(400).json({ error: 'title and numeric cost_points are required' });
+    const now = nowIso();
+    const info = db.prepare('INSERT INTO rewards (title, description, cost_points, stock, active, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(title, description, cost_points, stock, active ? 1 : 0, now);
+    const row = db.prepare('SELECT * FROM rewards WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json({ reward: row });
+});
+
+router.post('/rewards/:id/redeem', (req, res) => {
+    const { user_id, user_name = null, department_name = null } = req.body || {};
+    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
+    const r = db.prepare('SELECT * FROM rewards WHERE id = ? AND active = 1').get(req.params.id);
+    if (!r) return res.status(404).json({ error: 'reward not found' });
+    if ((r.stock || 0) <= 0) return res.status(400).json({ error: 'out of stock' });
+    // Check user points balance
+    const balance = db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ?').get(user_id).p;
+    if (balance < r.cost_points) return res.status(400).json({ error: 'insufficient points' });
+    const now = nowIso();
+    // Deduct by adding a negative score entry (campaign_id null)
+    db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(user_id, user_name, -r.cost_points, null, now, department_name);
+    db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
+    db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
+        .run(req.params.id, user_id, user_name, department_name, now);
+    res.json({ ok: true });
+});

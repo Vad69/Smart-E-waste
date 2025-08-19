@@ -120,6 +120,77 @@ export function initializeDatabase() {
 			key TEXT PRIMARY KEY,
 			value TEXT
 		);
+
+		-- Education resources (sustainability content)
+		CREATE TABLE IF NOT EXISTS education_resources (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			content_url TEXT,
+			content_type TEXT NOT NULL DEFAULT 'article', -- article | video | quiz | guide
+			points INTEGER NOT NULL DEFAULT 0,
+			campaign_id INTEGER,
+			created_at TEXT NOT NULL,
+			FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS education_completions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			resource_id INTEGER NOT NULL,
+			user_id TEXT NOT NULL,
+			user_name TEXT,
+			department_name TEXT,
+			points_awarded INTEGER NOT NULL DEFAULT 0,
+			completed_at TEXT NOT NULL,
+			FOREIGN KEY(resource_id) REFERENCES education_resources(id)
+		);
+
+		-- Collection drives
+		CREATE TABLE IF NOT EXISTS drives (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			description TEXT,
+			start_date TEXT,
+			end_date TEXT,
+			location TEXT,
+			capacity INTEGER,
+			points INTEGER NOT NULL DEFAULT 0,
+			campaign_id INTEGER,
+			created_at TEXT NOT NULL,
+			FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
+		);
+
+		CREATE TABLE IF NOT EXISTS drive_registrations (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			drive_id INTEGER NOT NULL,
+			user_id TEXT NOT NULL,
+			user_name TEXT,
+			department_name TEXT,
+			registered_at TEXT NOT NULL,
+			attended INTEGER NOT NULL DEFAULT 0,
+			attended_at TEXT,
+			FOREIGN KEY(drive_id) REFERENCES drives(id) ON DELETE CASCADE
+		);
+
+		-- Rewards store
+		CREATE TABLE IF NOT EXISTS rewards (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			description TEXT,
+			cost_points INTEGER NOT NULL,
+			stock INTEGER NOT NULL DEFAULT 0,
+			active INTEGER NOT NULL DEFAULT 1,
+			created_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS redemptions (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			reward_id INTEGER NOT NULL,
+			user_id TEXT NOT NULL,
+			user_name TEXT,
+			department_name TEXT,
+			redeemed_at TEXT NOT NULL,
+			FOREIGN KEY(reward_id) REFERENCES rewards(id)
+		);
 	`);
 
 	// Vendor migrations
@@ -139,6 +210,12 @@ export function initializeDatabase() {
 	ensurePickupCol('transporter_name', 'TEXT');
 	ensurePickupCol('vehicle_no', 'TEXT');
 	ensurePickupCol('transporter_contact', 'TEXT');
+
+	// User scores migrations
+	const scoreCols = db.prepare('PRAGMA table_info(user_scores)').all();
+	if (!scoreCols.some(c => c.name === 'department_name')) {
+		try { db.exec('ALTER TABLE user_scores ADD COLUMN department_name TEXT'); } catch {}
+	}
 
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
