@@ -9,7 +9,7 @@ export default function Items() {
 	const [department, setDepartment] = useState('');
 	const [category, setCategory] = useState('');
 	const [departments, setDepartments] = useState([]);
-	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '' });
+	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '' });
 
 	function load() {
 		const params = new URLSearchParams();
@@ -31,12 +31,13 @@ export default function Items() {
 		const payload = {
 			...form,
 			weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : 0,
-			department_id: form.department_id ? Number(form.department_id) : null
+			department_id: form.department_id ? Number(form.department_id) : null,
+			category_key: form.category_key || undefined
 		};
 		fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
-				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '' });
+				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '' });
 				load();
 			});
 	}
@@ -59,6 +60,10 @@ export default function Items() {
 					<select value={form.department_id} onChange={e => setForm(v => ({ ...v, department_id: e.target.value }))}>
 						<option value="">Department</option>
 						{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+					</select>
+					<select value={form.category_key} onChange={e => setForm(v => ({ ...v, category_key: e.target.value }))}>
+						<option value="">Category (auto)</option>
+						{['recyclable','reusable','hazardous'].map(c => <option key={c} value={c}>{c}</option>)}
 					</select>
 					<input className="input" placeholder="Condition (e.g., good/poor)" value={form.condition} onChange={e => setForm(v => ({ ...v, condition: e.target.value }))} />
 					<input className="input" placeholder="Weight (kg)" value={form.weight_kg} onChange={e => setForm(v => ({ ...v, weight_kg: e.target.value }))} />
@@ -110,7 +115,7 @@ export default function Items() {
 								<td>{i.condition || '—'}</td>
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
-								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
+								<td><a href={`/api/items/${i.id}/label.svg?size=420`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
 									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Pick up</button>
 									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Complete</button>
@@ -149,7 +154,7 @@ export default function Items() {
 								<td>{i.condition || '—'}</td>
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
-								<td><a href={`/api/items/${i.id}/qr.svg`} target="_blank" rel="noreferrer">QR</a></td>
+								<td><a href={`/api/items/${i.id}/label.svg?size=420`} target="_blank" rel="noreferrer">Label</a></td>
 							</tr>
 						))}
 					</tbody>
