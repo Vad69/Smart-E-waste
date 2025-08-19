@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, Brush } from 'recharts';
 
 export default function Dashboard() {
@@ -21,6 +21,28 @@ export default function Dashboard() {
 
 	const xKey = granularity === 'day' ? 'd' : 'ym';
 
+	function computeMax(data, keys) {
+		let max = 0;
+		for (const row of data || []) {
+			for (const k of keys) {
+				const v = Number(row?.[k]) || 0;
+				if (v > max) max = v;
+			}
+		}
+		return max;
+	}
+	function niceMax(v) {
+		if (!isFinite(v) || v <= 0) return 10;
+		const padded = v * 1.1;
+		const mag = Math.pow(10, Math.floor(Math.log10(padded)));
+		return Math.ceil(padded / mag) * mag;
+	}
+
+	const countMax = useMemo(() => niceMax(computeMax(trends, ['c'])), [trends]);
+	const weightMax = useMemo(() => niceMax(computeMax(trends, ['w'])), [trends]);
+	const statusMax = useMemo(() => niceMax(computeMax(statusTrends, ['recycled_w','refurbished_w','disposed_w'])), [statusTrends]);
+	const impactMax = useMemo(() => niceMax(computeMax(impactTrends, ['co2e','haz'])), [impactTrends]);
+
 	return (
 		<div className="grid">
 			<div className="grid cols-3">
@@ -38,7 +60,7 @@ export default function Dashboard() {
 				</div>
 			</div>
 
-			<div className="card" style={{ height: 380 }}>
+			<div className="card" style={{ height: 380, marginBottom: 16 }}>
 				<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
 					<h3 style={{ margin: 0 }}>{granularity === 'day' ? 'Daily Trends' : 'Monthly Trends'}</h3>
 					<div className="row" style={{ gap: 8 }}>
@@ -51,11 +73,11 @@ export default function Dashboard() {
 					</div>
 				</div>
 				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={trends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+					<LineChart data={trends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 						<CartesianGrid strokeDasharray="3 3" />
 						<XAxis dataKey={xKey} />
-						<YAxis yAxisId="left" allowDecimals={false} domain={[dataMin => Math.max(0, Math.floor((dataMin || 0) * 0.9)), dataMax => Math.ceil((dataMax || 10) * 1.1)]} />
-						<YAxis yAxisId="right" orientation="right" domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
+						<YAxis yAxisId="left" allowDecimals={false} domain={[0, countMax]} />
+						<YAxis yAxisId="right" orientation="right" domain={[0, weightMax]} />
 						<Tooltip />
 						<Legend />
 						<Line yAxisId="left" type="monotone" dataKey="c" name="Items" stroke="#2563eb" dot={false} />
@@ -65,16 +87,15 @@ export default function Dashboard() {
 				</ResponsiveContainer>
 			</div>
 
-			<div className="card" style={{ height: 360 }}>
+			<div className="card" style={{ height: 360, marginBottom: 16 }}>
 				<h3>Status Outcomes Over Time (Weight)</h3>
 				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={statusTrends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+					<LineChart data={statusTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 						<CartesianGrid strokeDasharray="3 3" />
 						<XAxis dataKey={xKey} />
-						<YAxis domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
+						<YAxis domain={[0, statusMax]} />
 						<Tooltip />
 						<Legend />
-						<Line type="monotone" dataKey="picked_up_w" name="Picked up (kg)" stroke="#f59e0b" dot={false} />
 						<Line type="monotone" dataKey="recycled_w" name="Recycled (kg)" stroke="#10b981" dot={false} />
 						<Line type="monotone" dataKey="refurbished_w" name="Refurbished (kg)" stroke="#8b5cf6" dot={false} />
 						<Line type="monotone" dataKey="disposed_w" name="Disposed (kg)" stroke="#ef4444" dot={false} />
@@ -110,10 +131,10 @@ export default function Dashboard() {
 				<div className="card" style={{ height: 360 }}>
 					<h3>Impact Over Time</h3>
 					<ResponsiveContainer width="100%" height="100%">
-						<LineChart data={impactTrends} margin={{ top: 10, right: 30, left: 10, bottom: 0 }}>
+						<LineChart data={impactTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 							<CartesianGrid strokeDasharray="3 3" />
 							<XAxis dataKey={xKey} />
-							<YAxis domain={[dataMin => Math.max(0, (dataMin || 0) * 0.9), dataMax => (dataMax || 10) * 1.2]} />
+							<YAxis domain={[0, impactMax]} />
 							<Tooltip />
 							<Legend />
 							<Line type="monotone" dataKey="co2e" name="CO2e saved (kg)" stroke="#2563eb" dot={false} />
