@@ -154,14 +154,17 @@ router.post('/:id/status', (req, res) => {
 	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	// Require scheduling before terminal updates
+	const terminal = ['picked_up','recycled','refurbished','disposed'];
+	if (terminal.includes(status)) {
+		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
+		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before marking as picked up / recycled / refurbished / disposed' });
+	}
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 		.run(req.params.id, `status_${status}`, notes, now);
-
-	// Auto-update related pickups
 	updatePickupsForItem(Number(req.params.id), now);
-
 	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	res.json({ item: mapItem(row) });
 });
