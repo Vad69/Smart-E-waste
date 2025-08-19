@@ -15,6 +15,20 @@ function BreakdownBar({ counts }) {
 	);
 }
 
+function Legend() {
+	const keys = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	return (
+		<div className="row wrap" style={{ gap: 12, margin: '6px 0 12px 0' }}>
+			{keys.map(k => (
+				<div key={k} className="row" style={{ gap: 6, alignItems: 'center' }}>
+					<span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: 3, background: COLORS[k], border: '1px solid #cbd5e1' }} />
+					<span style={{ fontSize: 12, color: '#334155' }}>{k}</span>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function Pickups() {
 	const [suggested, setSuggested] = useState({ suggested_items: [], vendors: [] });
 	const [vendorType, setVendorType] = useState('recycler');
@@ -88,6 +102,7 @@ export default function Pickups() {
 
 			<div className="card">
 				<h3>All Pickups</h3>
+				<Legend />
 				<table className="table">
 					<thead>
 						<tr>
