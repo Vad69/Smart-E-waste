@@ -3,43 +3,47 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 
 export default function Dashboard() {
 	const [summary, setSummary] = useState(null);
-	const [trends, setTrends] = useState([]);
-	const [statusTrends, setStatusTrends] = useState([]);
-	const [impactTrends, setImpactTrends] = useState([]);
+	const [dailyTrends, setDailyTrends] = useState([]);
+	const [dailyStatusTrends, setDailyStatusTrends] = useState([]);
+	const [dailyImpactTrends, setDailyImpactTrends] = useState([]);
+	const [monthlyTrends, setMonthlyTrends] = useState([]);
+	const [monthlyStatusTrends, setMonthlyStatusTrends] = useState([]);
+	const [monthlyImpactTrends, setMonthlyImpactTrends] = useState([]);
 	const [granularity, setGranularity] = useState('month');
 	const [selectedMonth, setSelectedMonth] = useState(() => {
 		const d = new Date();
 		const m = String(d.getMonth() + 1).padStart(2, '0');
-		return `${d.getFullYear()}-${m}`; // YYYY-MM for <input type="month">
+		return `${d.getFullYear()}-${m}`;
 	});
 	const [segments, setSegments] = useState({ byDept: [], byCategory: [] });
 	const [impact, setImpact] = useState(null);
 
 	function monthRange(ym) {
-		// ym: YYYY-MM
 		const [y, m] = ym.split('-').map(Number);
 		const start = new Date(y, m - 1, 1);
-		const end = new Date(y, m, 0); // last day of month
+		const end = new Date(y, m, 0);
 		const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 		return { from: `${iso(start)}T00:00:00Z`, to: `${iso(end)}T23:59:59Z` };
 	}
 
+	// Fetch monthly (once)
 	useEffect(() => {
-		const qs = new URLSearchParams();
-		qs.set('granularity', granularity);
-		let qsDay = '';
-		if (granularity === 'day') {
-			const { from, to } = monthRange(selectedMonth);
-			qs.set('from', from); qs.set('to', to);
-			qsDay = `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-		}
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
-		fetch(`/api/analytics/trends?${qs.toString()}`).then(r => r.json()).then(d => setTrends(d.daily || d.monthly || []));
-		fetch(`/api/analytics/status-trends?granularity=${granularity}${qsDay}`).then(r => r.json()).then(d => setStatusTrends(d.daily || d.monthly || []));
-		fetch(`/api/analytics/impact-trends?granularity=${granularity}${qsDay}`).then(r => r.json()).then(d => setImpactTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/trends?granularity=month`).then(r => r.json()).then(d => setMonthlyTrends(d.monthly || []));
+		fetch(`/api/analytics/status-trends?granularity=month`).then(r => r.json()).then(d => setMonthlyStatusTrends(d.monthly || []));
+		fetch(`/api/analytics/impact-trends?granularity=month`).then(r => r.json()).then(d => setMonthlyImpactTrends(d.monthly || []));
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
-	}, [granularity, selectedMonth]);
+	}, []);
+
+	// Fetch daily whenever month changes
+	useEffect(() => {
+		const { from, to } = monthRange(selectedMonth);
+		const qs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+		fetch(`/api/analytics/trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyTrends(d.daily || []));
+		fetch(`/api/analytics/status-trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyStatusTrends(d.daily || []));
+		fetch(`/api/analytics/impact-trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyImpactTrends(d.daily || []));
+	}, [selectedMonth]);
 
 	const xKey = granularity === 'day' ? 'd' : 'ym';
 
@@ -60,10 +64,14 @@ export default function Dashboard() {
 		return Math.ceil(padded / mag) * mag;
 	}
 
-	const countMax = useMemo(() => niceMax(computeMax(trends, ['c'])), [trends]);
-	const weightMax = useMemo(() => niceMax(computeMax(trends, ['w'])), [trends]);
-	const statusMax = useMemo(() => niceMax(computeMax(statusTrends, ['recycled_w','refurbished_w','disposed_w'])), [statusTrends]);
-	const impactMax = useMemo(() => niceMax(computeMax(impactTrends, ['co2e','haz'])), [impactTrends]);
+	const trendsData = granularity === 'day' ? dailyTrends : monthlyTrends;
+	const statusData = granularity === 'day' ? dailyStatusTrends : monthlyStatusTrends;
+	const impactData = granularity === 'day' ? dailyImpactTrends : monthlyImpactTrends;
+
+	const countMax = useMemo(() => niceMax(computeMax(trendsData, ['c'])), [trendsData]);
+	const weightMax = useMemo(() => niceMax(computeMax(trendsData, ['w'])), [trendsData]);
+	const statusMax = useMemo(() => niceMax(computeMax(statusData, ['recycled_w','refurbished_w','disposed_w'])), [statusData]);
+	const impactMax = useMemo(() => niceMax(computeMax(impactData, ['co2e','haz'])), [impactData]);
 
 	return (
 		<div className="grid">
@@ -98,7 +106,7 @@ export default function Dashboard() {
 					</div>
 				</div>
 				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={trends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+					<LineChart data={trendsData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 						<CartesianGrid strokeDasharray="3 3" />
 						<XAxis dataKey={xKey} />
 						<YAxis yAxisId="left" allowDecimals={false} domain={[0, countMax]} />
@@ -120,7 +128,7 @@ export default function Dashboard() {
 					</div>
 				)}
 				<ResponsiveContainer width="100%" height="100%">
-					<LineChart data={statusTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+					<LineChart data={statusData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 						<CartesianGrid strokeDasharray="3 3" />
 						<XAxis dataKey={xKey} />
 						<YAxis domain={[0, statusMax]} />
@@ -166,7 +174,7 @@ export default function Dashboard() {
 						</div>
 					)}
 					<ResponsiveContainer width="100%" height="100%">
-						<LineChart data={impactTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
+						<LineChart data={impactData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 							<CartesianGrid strokeDasharray="3 3" />
 							<XAxis dataKey={xKey} />
 							<YAxis domain={[0, impactMax]} />
