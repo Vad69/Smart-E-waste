@@ -89,7 +89,16 @@ export default function Campaigns() {
 	function redeemReward(e) {
 		e.preventDefault(); if (!redeemForm.reward_id) return;
 		fetch(`/api/campaigns/rewards/${redeemForm.reward_id}/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: redeemForm.user_id, user_name: redeemForm.user_name, department_name: redeemForm.department_name }) })
-			.then(() => setRedeemForm({ reward_id: '', user_id: '', user_name: '', department_name: '' }));
+			.then(async r => {
+				if (!r.ok) {
+					const err = await r.json().catch(() => ({}));
+					throw new Error(err?.error || 'Failed to redeem');
+				}
+				setRedeemForm({ reward_id: '', user_id: '', user_name: '', department_name: '' });
+				loadRewards();
+				loadLeaderboard();
+			})
+			.catch(e => alert(e.message || 'Failed to redeem'));
 	}
 	function checkBalance(e) {
 		e.preventDefault();
