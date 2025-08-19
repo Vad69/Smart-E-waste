@@ -29,6 +29,8 @@ export default function Campaigns() {
 	const [rewards, setRewards] = useState([]);
 	const [rewardForm, setRewardForm] = useState({ title: '', description: '', cost_points: '', stock: '' });
 	const [redeemForm, setRedeemForm] = useState({ reward_id: '', user_id: '', user_name: '', department_name: '' });
+	const [balanceUserId, setBalanceUserId] = useState('');
+	const [balance, setBalance] = useState(null);
 
 	function loadCampaigns() { fetch('/api/campaigns').then(r => r.json()).then(d => setCampaigns(d.campaigns)); }
 	function loadLeaderboard() {
@@ -94,6 +96,12 @@ export default function Campaigns() {
 		e.preventDefault(); if (!redeemForm.reward_id) return;
 		fetch(`/api/campaigns/rewards/${redeemForm.reward_id}/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: redeemForm.user_id, user_name: redeemForm.user_name, department_name: redeemForm.department_name }) })
 			.then(() => setRedeemForm({ reward_id: '', user_id: '', user_name: '', department_name: '' }));
+	}
+	function checkBalance(e) {
+		e.preventDefault();
+		if (!balanceUserId) return;
+		const path = selected ? `/api/campaigns/${selected}/user/${encodeURIComponent(balanceUserId)}/balance` : `/api/campaigns/user/${encodeURIComponent(balanceUserId)}/balance`;
+		fetch(path).then(r => r.json()).then(d => setBalance(d.points ?? 0));
 	}
 
 	const selectedCampaign = useMemo(() => campaigns.find(c => String(c.id) === String(selected)), [campaigns, selected]);
@@ -303,6 +311,14 @@ export default function Campaigns() {
 					<input className="input" placeholder="User Name" value={redeemForm.user_name} onChange={e => setRedeemForm(v => ({ ...v, user_name: e.target.value }))} />
 					<input className="input" placeholder="Department" value={redeemForm.department_name} onChange={e => setRedeemForm(v => ({ ...v, department_name: e.target.value }))} />
 					<button className="btn" type="submit">Redeem</button>
+				</form>
+			</Section>
+
+			<Section title="Student Balance">
+				<form onSubmit={checkBalance} className="row wrap" style={{ gap: 8 }}>
+					<input className="input" placeholder="Enter Student ID" value={balanceUserId} onChange={e => setBalanceUserId(e.target.value)} />
+					<button className="btn" type="submit">Check Balance</button>
+					{balance != null && <div className="mono">Points: {balance}</div>}
 				</form>
 			</Section>
 
