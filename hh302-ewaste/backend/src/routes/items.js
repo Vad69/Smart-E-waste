@@ -69,6 +69,7 @@ router.post('/', (req, res) => {
 		department_id = null,
 		condition = '',
 		purchase_date = null,
+		age_months = null,
 		weight_kg = 0,
 		serial_number = null,
 		asset_tag = null,
@@ -81,6 +82,14 @@ router.post('/', (req, res) => {
 	const rt = toIsoFlexible(reported_time);
 	if (reported_time && !rt) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 	if (rt) now = rt;
+
+	let purchaseToUse = purchase_date;
+	if (!purchaseToUse && (age_months ?? '') !== '') {
+		const m = Number(age_months);
+		if (!isNaN(m) && m > 0) {
+			purchaseToUse = dayjs(now).subtract(m, 'month').toISOString();
+		}
+	}
 
 	const qr_uid = uuidv4();
 	let category_key = null;
@@ -103,7 +112,7 @@ router.post('/', (req, res) => {
 		weight_kg, hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, created_at, updated_at
 	) VALUES (?, ?, ?, ?, 'reported', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 	const info = insert.run(
-		qr_uid, name, description, category_key, department_id, condition, purchase_date, weight_kg,
+		qr_uid, name, description, category_key, department_id, condition, purchaseToUse, weight_kg,
 		meta.hazardous, meta.recyclable, meta.reusable, serial_number, asset_tag, reported_by, now, now
 	);
 

@@ -9,7 +9,7 @@ export default function Items() {
 	const [department, setDepartment] = useState('');
 	const [category, setCategory] = useState('');
 	const [departments, setDepartments] = useState([]);
-	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
+	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', reported_time: '', age_months: '' });
 
 	function load() {
 		const params = new URLSearchParams();
@@ -33,13 +33,13 @@ export default function Items() {
 			weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : 0,
 			department_id: form.department_id ? Number(form.department_id) : null,
 			category_key: form.category_key || undefined,
-			purchase_date: form.purchase_date || null,
-			reported_time: form.reported_time || undefined
+			reported_time: form.reported_time || undefined,
+			age_months: form.age_months ? Number(form.age_months) : undefined
 		};
 		fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
-				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
+				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', reported_time: '', age_months: '' });
 				load();
 			});
 	}
@@ -90,8 +90,8 @@ export default function Items() {
 					</select>
 					<input className="input" placeholder="Condition (e.g., good/poor)" value={form.condition} onChange={e => setForm(v => ({ ...v, condition: e.target.value }))} />
 					<input className="input" placeholder="Weight (kg)" value={form.weight_kg} onChange={e => setForm(v => ({ ...v, weight_kg: e.target.value }))} />
-					<input className="input" type="date" value={form.purchase_date} onChange={e => setForm(v => ({ ...v, purchase_date: e.target.value }))} />
-					<input className="input" type="datetime-local" value={form.reported_time} onChange={e => setForm(v => ({ ...v, reported_time: e.target.value.replace('T',' ') }))} />
+					<input className="input" type="number" min="0" step="1" placeholder="Age (months)" value={form.age_months} onChange={e => setForm(v => ({ ...v, age_months: e.target.value }))} />
+					<input className="input" type="datetime-local" value={form.reported_time} onChange={e => setForm(v => ({ ...v, reported_time: e.target.value }))} />
 					<button className="btn" type="submit">Submit</button>
 				</form>
 			</div>
