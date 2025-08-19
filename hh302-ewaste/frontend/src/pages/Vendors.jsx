@@ -100,7 +100,7 @@ export default function Vendors() {
 								<td>{v.contact_name || '—'}</td>
 								<td className="mono">{v.phone || '—'}</td>
 								<td className="mono">{v.email || '—'}</td>
-								<td style={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.address || '—'}</td>
+								<td style={{ maxWidth: 360, whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{v.address || '—'}</td>
 								<td className="mono">{v.license_no || '—'}</td>
 								<td className="mono">{v.authorization_no || '—'}</td>
 								<td className="mono">{v.auth_valid_from || '—'} to {v.auth_valid_to || '—'}</td>
