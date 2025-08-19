@@ -128,6 +128,19 @@ router.post('/', (req, res) => {
     res.status(201).json({ item: mapItem(row) });
 });
 
+// Fetch single item
+router.get('/:id', (req, res) => {
+    const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Item not found' });
+    res.json({ item: mapItem(row) });
+});
+
+// Item events (chronological)
+router.get('/:id/events', (req, res) => {
+    const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
+    res.json({ events: rows });
+});
+
 router.get('/:id/pickup-info', (req, res) => {
 	const id = Number(req.params.id);
 	if (!id) return res.status(400).json({ error: 'invalid id' });
