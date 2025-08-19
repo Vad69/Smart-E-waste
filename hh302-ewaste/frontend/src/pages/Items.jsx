@@ -77,7 +77,7 @@ export default function Items() {
 					<input className="input" placeholder="Search" value={q} onChange={e => setQ(e.target.value)} />
 					<select value={status} onChange={e => setStatus(e.target.value)}>
 						<option value="">Status</option>
-						{['reported','scheduled','picked_up','recycled'].map(s => <option key={s} value={s}>{s}</option>)}
+						{['reported','scheduled','picked_up','recycled','refurbished','disposed'].map(s => <option key={s} value={s}>{s}</option>)}
 					</select>
 					<select value={department} onChange={e => setDepartment(e.target.value)}>
 						<option value="">Department</option>
@@ -118,7 +118,9 @@ export default function Items() {
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
 									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'reported' && i.status !== 'scheduled'}>Pick up</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Complete</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycle</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'picked_up'}>Refurbish</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'picked_up'}>Dispose</button>
 								</td>
 							</tr>
 						))}

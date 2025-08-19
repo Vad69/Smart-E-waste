@@ -13,7 +13,7 @@ router.get('/summary', (req, res) => {
 	const recyclableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE recyclable = 1').get().c;
 	const reusableCount = db.prepare('SELECT COUNT(*) as c FROM items WHERE reusable = 1').get().c;
 
-	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
+	const pickedUpWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled','refurbished','disposed')").get().w;
 	const recoveryRate = totalWeight > 0 ? pickedUpWeight / totalWeight : 0;
 
 	res.json({ totalItems, totalWeight, byStatus, byCategory, hazardousCount, recyclableCount, reusableCount, recoveryRate });
@@ -62,11 +62,14 @@ router.get('/segments', (req, res) => {
 });
 
 router.get('/impact', (req, res) => {
-	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('picked_up','recycled')").get().w;
-	const hazardousWeight = db.prepare('SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE hazardous = 1').get().w;
-	const co2eSavedKg = recycledWeight * 1.5;
-	const hazardousPreventedKg = hazardousWeight * 0.2;
-	res.json({ recycledWeight, co2eSavedKg, hazardousPreventedKg });
+	const processedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status IN ('recycled','refurbished','disposed')").get().w;
+	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'recycled'").get().w;
+	const refurbishedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'refurbished'").get().w;
+	const disposedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'disposed'").get().w;
+	// Simple model: recycling saves 1.5 kg CO2e/kg; refurbishing saves 3.0 kg CO2e/kg (extends life); safe disposal avoids 0.5 kg hazardous/kg
+	const co2eSavedKg = recycledWeight * 1.5 + refurbishedWeight * 3.0;
+	const hazardousPreventedKg = disposedWeight * 0.5;
+	res.json({ processedWeight, recycledWeight, refurbishedWeight, disposedWeight, co2eSavedKg, hazardousPreventedKg });
 });
 
 export default router;

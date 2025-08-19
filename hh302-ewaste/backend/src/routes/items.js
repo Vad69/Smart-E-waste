@@ -150,6 +150,8 @@ router.put('/:id', (req, res) => {
 router.post('/:id/status', (req, res) => {
 	const { status, notes = '' } = req.body || {};
 	if (!status) return res.status(400).json({ error: 'status is required' });
+	const valid = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
 	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Item not found' });
 	const now = nowIso();
