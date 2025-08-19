@@ -99,6 +99,18 @@ router.post('/education/:resourceId/complete', (req, res) => {
     res.status(201).json({ ok: true, points: r.points || 0 });
 });
 
+// Delete a single resource and its completions
+router.delete('/education/:resourceId', (req, res) => {
+    const id = Number(req.params.resourceId);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM education_completions WHERE resource_id = ?').run(id);
+        db.prepare('DELETE FROM education_resources WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ ok: true });
+});
+
 // Drives
 router.get('/:id/drives', (req, res) => {
     const rows = db.prepare('SELECT * FROM drives WHERE campaign_id = ? ORDER BY start_date DESC, created_at DESC').all(req.params.id);

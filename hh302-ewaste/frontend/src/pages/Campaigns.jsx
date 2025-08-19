@@ -174,6 +174,7 @@ export default function Campaigns() {
 									<th>Title</th>
 									<th>Type</th>
 									<th>Points</th>
+									<th></th>
 								</tr>
 							</thead>
 							<tbody>
@@ -182,6 +183,9 @@ export default function Campaigns() {
 										<td>{r.title}</td>
 										<td className="mono">{r.content_type}</td>
 										<td className="mono">{r.points || 0}</td>
+										<td>
+											<button className="btn secondary" onClick={() => { if (confirm('Delete this resource?')) { fetch(`/api/campaigns/education/${r.id}`, { method: 'DELETE' }).then(() => setResources(prev => prev.filter(x => x.id !== r.id))); } }}>Delete</button>
+										</td>
 									</tr>
 								))}
 							</tbody>
