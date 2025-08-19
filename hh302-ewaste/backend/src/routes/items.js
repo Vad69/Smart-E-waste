@@ -159,6 +159,7 @@ router.post('/:id/status', (req, res) => {
 	if (terminal.includes(status)) {
 		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
 		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before marking as picked up / recycled / refurbished / disposed' });
+		if (existing.status !== 'scheduled') return res.status(400).json({ error: 'Only items currently scheduled can be updated to picked up / recycled / refurbished / disposed' });
 	}
 	const now = nowIso();
 	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
