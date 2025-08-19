@@ -79,6 +79,23 @@ router.get('/scoreboard/all', (req, res) => {
 	res.json({ leaderboard: rows });
 });
 
+// Student points balance (global)
+router.get('/user/:userId/balance', (req, res) => {
+	const userId = String(req.params.userId || '').trim();
+	if (!userId) return res.status(400).json({ error: 'invalid user id' });
+	const row = db.prepare('SELECT IFNULL(SUM(points),0) as points FROM user_scores WHERE user_id = ?').get(userId);
+	res.json({ user_id: userId, points: row.points });
+});
+
+// Student points balance within a campaign
+router.get('/:id/user/:userId/balance', (req, res) => {
+	const campaignId = Number(req.params.id);
+	const userId = String(req.params.userId || '').trim();
+	if (!campaignId || !userId) return res.status(400).json({ error: 'invalid parameters' });
+	const row = db.prepare('SELECT IFNULL(SUM(points),0) as points FROM user_scores WHERE user_id = ? AND campaign_id = ?').get(userId, campaignId);
+	res.json({ user_id: userId, campaign_id: campaignId, points: row.points });
+});
+
 export default router;
 
 // Education resources
