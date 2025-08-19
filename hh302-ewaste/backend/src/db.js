@@ -196,6 +196,7 @@ export function initializeDatabase() {
 	// Vendor migrations
 	const vendorCols = db.prepare('PRAGMA table_info(vendors)').all();
 	const ensureVendorCol = (name, def) => { if (!vendorCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE vendors ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureVendorCol('active', 'INTEGER NOT NULL DEFAULT 1');
 	ensureVendorCol('authorization_no', 'TEXT');
 	ensureVendorCol('auth_valid_from', 'TEXT');
 	ensureVendorCol('auth_valid_to', 'TEXT');
