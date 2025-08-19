@@ -218,6 +218,12 @@ export function initializeDatabase() {
 		try { db.exec('ALTER TABLE user_scores ADD COLUMN department_name TEXT'); } catch {}
 	}
 
+	// Rewards migrations
+	const rewardCols = db.prepare('PRAGMA table_info(rewards)').all();
+	if (!rewardCols.some(c => c.name === 'campaign_id')) {
+		try { db.exec('ALTER TABLE rewards ADD COLUMN campaign_id INTEGER'); } catch {}
+	}
+
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {

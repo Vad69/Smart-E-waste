@@ -57,8 +57,11 @@ router.post('/:id/award', (req, res) => {
 		.get(user_id);
 	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
 	const canonicalName = existing?.user_name || firstName;
+	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const canonicalDept = existingDept?.department_name || (department_name || null);
 	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-		.run(user_id, canonicalName, points, req.params.id, now, department_name);
+		.run(user_id, canonicalName, points, req.params.id, now, canonicalDept);
 	res.status(201).json({ ok: true });
 });
 
@@ -74,6 +77,23 @@ router.get('/scoreboard/all', (req, res) => {
 		LIMIT 20
 	`).all();
 	res.json({ leaderboard: rows });
+});
+
+// Student points balance (global)
+router.get('/user/:userId/balance', (req, res) => {
+	const userId = String(req.params.userId || '').trim();
+	if (!userId) return res.status(400).json({ error: 'invalid user id' });
+	const row = db.prepare('SELECT IFNULL(SUM(points),0) as points FROM user_scores WHERE user_id = ?').get(userId);
+	res.json({ user_id: userId, points: row.points });
+});
+
+// Student points balance within a campaign
+router.get('/:id/user/:userId/balance', (req, res) => {
+	const campaignId = Number(req.params.id);
+	const userId = String(req.params.userId || '').trim();
+	if (!campaignId || !userId) return res.status(400).json({ error: 'invalid parameters' });
+	const row = db.prepare('SELECT IFNULL(SUM(points),0) as points FROM user_scores WHERE user_id = ? AND campaign_id = ?').get(userId, campaignId);
+	res.json({ user_id: userId, campaign_id: campaignId, points: row.points });
 });
 
 export default router;
@@ -107,8 +127,11 @@ router.post('/education/:resourceId/complete', (req, res) => {
             .get(user_id);
         const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
         const canonicalName = existing?.user_name || firstName;
+        const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(user_id);
+        const canonicalDept = existingDept?.department_name || (department_name || null);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, department_name);
+            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, canonicalDept);
     }
     res.status(201).json({ ok: true, points: r.points || 0 });
 });
@@ -165,24 +188,27 @@ router.post('/drives/:driveId/attend', (req, res) => {
             .get(reg.user_id);
         const firstName = String(reg.user_name || '').trim().split(/\s+/)[0] || null;
         const canonicalName = existing?.user_name || firstName;
+        const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(reg.user_id);
+        const canonicalDept = existingDept?.department_name || (reg.department_name || null);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, reg.department_name);
+            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, canonicalDept);
     }
     res.json({ ok: true });
 });
 
 // Rewards store
-router.get('/rewards', (req, res) => {
-    const rows = db.prepare('SELECT * FROM rewards WHERE active = 1 ORDER BY created_at DESC').all();
+router.get('/:id/rewards', (req, res) => {
+    const rows = db.prepare('SELECT * FROM rewards WHERE active = 1 AND (campaign_id = ? OR campaign_id IS NULL) ORDER BY created_at DESC').all(req.params.id);
     res.json({ rewards: rows });
 });
 
-router.post('/rewards', (req, res) => {
+router.post('/:id/rewards', (req, res) => {
     const { title, description = '', cost_points, stock = 0, active = 1 } = req.body || {};
     if (!title || typeof cost_points !== 'number') return res.status(400).json({ error: 'title and numeric cost_points are required' });
     const now = nowIso();
-    const info = db.prepare('INSERT INTO rewards (title, description, cost_points, stock, active, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(title, description, cost_points, stock, active ? 1 : 0, now);
+    const info = db.prepare('INSERT INTO rewards (title, description, cost_points, stock, active, created_at, campaign_id) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(title, description, cost_points, stock, active ? 1 : 0, now, req.params.id);
     const row = db.prepare('SELECT * FROM rewards WHERE id = ?').get(info.lastInsertRowid);
     res.status(201).json({ reward: row });
 });
@@ -193,28 +219,25 @@ router.post('/rewards/:id/redeem', (req, res) => {
     const r = db.prepare('SELECT * FROM rewards WHERE id = ? AND active = 1').get(req.params.id);
     if (!r) return res.status(404).json({ error: 'reward not found' });
     if ((r.stock || 0) <= 0) return res.status(400).json({ error: 'out of stock' });
-    // Check user points balance
-    const balance = db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ?').get(user_id).p;
+    const campaignId = r.campaign_id || null;
+    // Check user points balance (per campaign if campaignId set)
+    const balance = campaignId != null
+        ? db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ? AND campaign_id = ?').get(user_id, campaignId).p
+        : db.prepare('SELECT IFNULL(SUM(points),0) as p FROM user_scores WHERE user_id = ?').get(user_id).p;
     if (balance < r.cost_points) return res.status(400).json({ error: 'insufficient points' });
     const now = nowIso();
-    // Deduct by adding a negative score entry (campaign_id null)
+    // Canonical first name and department
+    const existingName = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.user_name || null;
+    const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+    const canonicalName = existingName || firstName;
+    const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.department_name || null;
+    const canonicalDept = existingDept || (department_name || null);
+    // Deduct by adding a negative score entry in the same campaign scope
     db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(user_id, user_name, -r.cost_points, null, now, department_name);
+        .run(user_id, canonicalName, -r.cost_points, campaignId, now, canonicalDept);
     db.prepare('UPDATE rewards SET stock = stock - 1 WHERE id = ?').run(req.params.id);
     db.prepare('INSERT INTO redemptions (reward_id, user_id, user_name, department_name, redeemed_at) VALUES (?, ?, ?, ?, ?)')
-        .run(req.params.id, user_id, user_name, department_name, now);
-    res.json({ ok: true });
-});
-
-// Delete a reward and its redemptions
-router.delete('/rewards/:id', (req, res) => {
-    const id = Number(req.params.id);
-    if (!id) return res.status(400).json({ error: 'invalid id' });
-    const tx = db.transaction(() => {
-        db.prepare('DELETE FROM redemptions WHERE reward_id = ?').run(id);
-        db.prepare('DELETE FROM rewards WHERE id = ?').run(id);
-    });
-    tx();
+        .run(req.params.id, user_id, canonicalName, canonicalDept, now);
     res.json({ ok: true });
 });
 

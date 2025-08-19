@@ -75,6 +75,59 @@ router.get('/', (req, res) => {
 	res.json({ total, page: Number(page), limit: Number(limit), items: rows.map(mapItem) });
 })
 
+// Create item (Report)
+router.post('/', (req, res) => {
+    let now = nowIso();
+    const {
+        name,
+        description = '',
+        department_id = null,
+        condition = '',
+        purchase_date = null,
+        weight_kg = 0,
+        serial_number = null,
+        asset_tag = null,
+        reported_by = null,
+        category_key: categoryOverride = null,
+        reported_time = null
+    } = req.body || {};
+
+    if (!name) return res.status(400).json({ error: 'name is required' });
+    const rt = normalizeLocalTime(reported_time);
+    if (reported_time && !rt) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
+    if (rt) now = rt;
+
+    const qr_uid = uuidv4();
+    let category_key = categoryOverride || null;
+    let hazardous = 0, recyclable = 0, reusable = 0;
+    if (categoryOverride && ['recyclable','reusable','hazardous'].includes(categoryOverride)) {
+        hazardous = categoryOverride === 'hazardous' ? 1 : 0;
+        recyclable = categoryOverride === 'recyclable' ? 1 : 0;
+        reusable = categoryOverride === 'reusable' ? 1 : 0;
+    } else {
+        const meta = classifyItem({ name, description, condition, weight_kg });
+        category_key = meta.category_key;
+        hazardous = meta.hazardous ? 1 : 0;
+        recyclable = meta.recyclable ? 1 : 0;
+        reusable = meta.reusable ? 1 : 0;
+    }
+
+    const insert = db.prepare(`INSERT INTO items (
+        qr_uid, name, description, category_key, status, department_id, condition, purchase_date,
+        weight_kg, hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, 'reported', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+    const info = insert.run(
+        qr_uid, name, description, category_key, department_id, condition, purchase_date, Number(weight_kg) || 0,
+        hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, now, now
+    );
+
+    db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
+        .run(info.lastInsertRowid, 'reported', 'Item reported', now);
+
+    const row = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
+    res.status(201).json({ item: mapItem(row) });
+});
+
 router.get('/:id/pickup-info', (req, res) => {
 	const id = Number(req.params.id);
 	if (!id) return res.status(400).json({ error: 'invalid id' });
