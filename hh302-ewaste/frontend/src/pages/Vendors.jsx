@@ -78,6 +78,10 @@ export default function Vendors() {
 						<tr>
 							<th>Name</th>
 							<th>Type</th>
+							<th>Contact</th>
+							<th>Phone</th>
+							<th>Email</th>
+							<th>Address</th>
 							<th>License</th>
 							<th>Auth No</th>
 							<th>Validity</th>
@@ -93,6 +97,10 @@ export default function Vendors() {
 							<tr key={v.id}>
 								<td>{v.name}</td>
 								<td>{v.type}</td>
+								<td>{v.contact_name || '—'}</td>
+								<td className="mono">{v.phone || '—'}</td>
+								<td className="mono">{v.email || '—'}</td>
+								<td style={{ maxWidth: 240, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{v.address || '—'}</td>
 								<td className="mono">{v.license_no || '—'}</td>
 								<td className="mono">{v.authorization_no || '—'}</td>
 								<td className="mono">{v.auth_valid_from || '—'} to {v.auth_valid_to || '—'}</td>

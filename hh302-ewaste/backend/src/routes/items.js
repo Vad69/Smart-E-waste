@@ -43,6 +43,20 @@ function mapItem(row) {
 	};
 }
 
+function getLatestPickupInfoForItem(itemId) {
+	const p = db.prepare(`
+		SELECT p.*, v.name as vendor_name, v.type as vendor_type, v.license_no as vendor_license,
+		       v.contact_name as vendor_contact_name, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
+		FROM pickups p
+		JOIN pickup_items pi ON p.id = pi.pickup_id
+		JOIN vendors v ON v.id = p.vendor_id
+		WHERE pi.item_id = ?
+		ORDER BY p.scheduled_date DESC, p.id DESC
+		LIMIT 1
+	`).get(itemId);
+	return p || null;
+}
+
 router.get('/', (req, res) => {
 	const { q = '', status, department_id, category_key, page = 1, limit = 50 } = req.query;
 	const filters = [];
@@ -59,211 +73,54 @@ router.get('/', (req, res) => {
 	const total = db.prepare(`SELECT COUNT(*) as c FROM items ${where}`).get(...params).c;
 	const rows = db.prepare(`SELECT * FROM items ${where} ORDER BY id DESC LIMIT ? OFFSET ?`).all(...params, Number(limit), (Number(page) - 1) * Number(limit));
 	res.json({ total, page: Number(page), limit: Number(limit), items: rows.map(mapItem) });
+})
+
+router.get('/:id/pickup-info', (req, res) => {
+	const id = Number(req.params.id);
+	if (!id) return res.status(400).json({ error: 'invalid id' });
+	const p = getLatestPickupInfoForItem(id);
+	if (!p) return res.json({ pickup: null });
+	res.json({ pickup: {
+		id: p.id,
+		vendor_id: p.vendor_id,
+		vendor_name: p.vendor_name,
+		vendor_type: p.vendor_type,
+		vendor_license: p.vendor_license,
+		vendor_contact_name: p.vendor_contact_name,
+		vendor_phone: p.vendor_phone,
+		vendor_email: p.vendor_email,
+		vendor_address: p.vendor_address,
+		manifest_no: p.manifest_no,
+		transporter_name: p.transporter_name,
+		vehicle_no: p.vehicle_no,
+		transporter_contact: p.transporter_contact,
+		scheduled_date: p.scheduled_date
+	} });
 });
 
-router.post('/', (req, res) => {
-	let now = nowIso();
-	const {
-		name,
-		description = '',
-		department_id = null,
-		condition = '',
-		purchase_date = null,
-		age_months = null,
-		weight_kg = 0,
-		serial_number = null,
-		asset_tag = null,
-		reported_by = null,
-		category_key: categoryOverride = null,
-		reported_time = null
-	} = req.body || {};
-
-	if (!name) return res.status(400).json({ error: 'name is required' });
-	const rt = normalizeLocalTime(reported_time);
-	if (reported_time && !rt) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
-	if (rt) now = rt;
-
-	let purchaseToUse = purchase_date;
-	if (!purchaseToUse && (age_months ?? '') !== '') {
-		const m = Number(age_months);
-		if (!isNaN(m) && m > 0) {
-			purchaseToUse = dayjs(now).subtract(m, 'month').format('YYYY-MM-DD');
-		}
-	}
-
-	const qr_uid = uuidv4();
-	let category_key = null;
-	let meta = null;
-	if (['recyclable','reusable','hazardous'].includes(categoryOverride)) {
-		category_key = categoryOverride;
-		meta = {
-			hazardous: categoryOverride === 'hazardous' ? 1 : 0,
-			recyclable: categoryOverride === 'recyclable' ? 1 : 0,
-			reusable: categoryOverride === 'reusable' ? 1 : 0,
-			recommended_vendor_type: categoryOverride === 'hazardous' ? 'hazardous' : (categoryOverride === 'reusable' ? 'refurbisher' : 'recycler')
-		};
-	} else {
-		meta = classifyItem({ name, description, condition, weight_kg });
-		category_key = meta.category_key;
-	}
-
-	const insert = db.prepare(`INSERT INTO items (
-		qr_uid, name, description, category_key, status, department_id, condition, purchase_date,
-		weight_kg, hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, created_at, updated_at
-	) VALUES (?, ?, ?, ?, 'reported', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-	const info = insert.run(
-		qr_uid, name, description, category_key, department_id, condition, purchaseToUse, weight_kg,
-		meta.hazardous, meta.recyclable, meta.reusable, serial_number, asset_tag, reported_by, now, now
-	);
-
-	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
-		.run(info.lastInsertRowid, 'reported', 'Item reported and classified', now);
-
-	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
-	res.status(201).json({ item: mapItem(row), recommended_vendor_type: meta.recommended_vendor_type });
-});
-
-router.get('/scan/:qr_uid', (req, res) => {
-	const row = db.prepare('SELECT * FROM items WHERE qr_uid = ?').get(req.params.qr_uid);
-	if (!row) return res.status(404).json({ error: 'Item not found' });
-	res.json({ item: mapItem(row) });
-});
-
-router.get('/:id', (req, res) => {
-	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-	if (!row) return res.status(404).json({ error: 'Item not found' });
-	res.json({ item: mapItem(row) });
-});
-
-router.put('/:id', (req, res) => {
-	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-	if (!existing) return res.status(404).json({ error: 'Item not found' });
-	const now = nowIso();
-	const updates = { ...existing, ...req.body };
-	let classification = null;
-	if (['recyclable','reusable','hazardous'].includes(req.body?.category_key)) {
-		updates.category_key = req.body.category_key;
-		updates.hazardous = req.body.category_key === 'hazardous' ? 1 : 0;
-		updates.recyclable = req.body.category_key === 'recyclable' ? 1 : 0;
-		updates.reusable = req.body.category_key === 'reusable' ? 1 : 0;
-	} else if (req.body.name || req.body.description || req.body.condition || req.body.weight_kg !== undefined) {
-		classification = classifyItem({ name: updates.name, description: updates.description, condition: updates.condition, weight_kg: updates.weight_kg });
-		updates.category_key = classification.category_key;
-		updates.hazardous = classification.hazardous;
-		updates.recyclable = classification.recyclable;
-		updates.reusable = classification.reusable;
-	}
-
-	db.prepare(`UPDATE items SET
-		name = ?, description = ?, category_key = ?, department_id = ?, condition = ?, purchase_date = ?,
-		weight_kg = ?, hazardous = ?, recyclable = ?, reusable = ?, serial_number = ?, asset_tag = ?, reported_by = ?, updated_at = ?
-		WHERE id = ?
-	`).run(
-		updates.name, updates.description, updates.category_key, updates.department_id, updates.condition, updates.purchase_date,
-		updates.weight_kg, updates.hazardous, updates.recyclable, updates.reusable, updates.serial_number, updates.asset_tag, updates.reported_by, now, req.params.id
-	);
-
-	if (classification) {
-		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
-			.run(req.params.id, 'reclassified', `Auto classification updated to ${updates.category_key}`, now);
-	}
-
-	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-	res.json({ item: mapItem(row) });
-});
-
-router.post('/:id/status', (req, res) => {
-	const { status, notes = '' } = req.body || {};
-	if (!status) return res.status(400).json({ error: 'status is required' });
-	const valid = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
-	if (!valid.includes(status)) return res.status(400).json({ error: 'invalid status' });
-	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-	if (!existing) return res.status(404).json({ error: 'Item not found' });
-	const terminal = ['picked_up','recycled','refurbished','disposed'];
-	if (terminal.includes(status)) {
-		const scheduledCount = db.prepare('SELECT COUNT(*) as c FROM pickup_items WHERE item_id = ?').get(req.params.id).c;
-		if (!scheduledCount) return res.status(400).json({ error: 'Item must be scheduled via Pickups before status changes' });
-		if (status === 'picked_up' && existing.status !== 'scheduled') {
-			return res.status(400).json({ error: 'Only items currently scheduled can be marked as picked up' });
-		}
-		if ((status === 'recycled' || status === 'refurbished' || status === 'disposed') && existing.status !== 'picked_up') {
-			return res.status(400).json({ error: 'Only items currently picked up can be marked as recycled/refurbished/disposed' });
-		}
-		const at = normalizeLocalTime(req.body.manual_time || req.body.at);
-		if (!at) return res.status(400).json({ error: 'manual_time is invalid or missing. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
-		db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, req.params.id);
-		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
-			.run(req.params.id, `status_${status}`, notes, at);
-		updatePickupsForItem(Number(req.params.id), at);
-		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-		return res.json({ item: mapItem(row) });
-	}
-	const now = nowIso();
-	db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, now, req.params.id);
-	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
-		.run(req.params.id, `status_${status}`, notes, now);
-	updatePickupsForItem(Number(req.params.id), now);
-	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-	res.json({ item: mapItem(row) });
-});
-
-function updatePickupsForItem(itemId, now) {
-	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(itemId).map(r => r.pickup_id);
-	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
-	for (const pickupId of pickupIds) {
-		const pickup = db.prepare('SELECT * FROM pickups WHERE id = ?').get(pickupId);
-		if (!pickup) continue;
-		const rows = db.prepare('SELECT i.id, i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
-		if (rows.length === 0) continue;
-		const allFinal = rows.every(r => finalStatuses.has(r.status));
-		const newStatus = allFinal ? 'completed' : 'scheduled';
-		if (pickup.status !== newStatus) {
-			db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(newStatus, pickupId);
-			// No extra item_events here to avoid duplication
-		}
-	}
+function escapeXml(s) {
+	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-
-router.get('/:id/events', (req, res) => {
-	const rows = db.prepare('SELECT * FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
-	res.json({ events: rows });
-});
-
-router.post('/:id/events', (req, res) => {
-	const { event_type, notes = '' } = req.body || {};
-	if (!event_type) return res.status(400).json({ error: 'event_type is required' });
-	const now = nowIso();
-	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
-		.run(req.params.id, event_type, notes, now);
-	res.status(201).json({ ok: true });
-});
-
-router.get('/:id/qr.svg', async (req, res, next) => {
-	try {
-		const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
-		if (!row) return res.status(404).send('Not found');
-		const svg = await generateQrSvg(row.qr_uid, 256);
-		res.type('image/svg+xml').send(svg);
-	} catch (e) {
-		next(e);
-	}
-});
 
 router.get('/:id/label.svg', async (req, res, next) => {
 	try {
 		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
 		if (!row) return res.status(404).send('Not found');
 		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
-		const labelWidth = size + 320;
-		const labelHeight = Math.max(size + 180, 440);
+		const labelWidth = size + 460;
+		const labelHeight = Math.max(size + 280, 600);
 		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+
+		// Facility settings
+		const settingsRows = db.prepare('SELECT key, value FROM settings').all();
+		const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+
+		// Item age and timeline
 		const ageBase = row.purchase_date || row.created_at;
 		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
 		const weightStr = (row.weight_kg || 0).toString();
-
-		// Build timeline from events
 		const evs = db.prepare('SELECT event_type, created_at FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
 		const findAt = (k) => evs.find(e => e.event_type === k)?.created_at || null;
 		const reportedAt = findAt('reported') || row.created_at;
@@ -275,27 +132,41 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		const processedLabel = recycledAt ? 'Recycled' : refurbAt ? 'Refurbished' : disposedAt ? 'Disposed' : null;
 		const processedAt = recycledAt || refurbAt || disposedAt || null;
 
+		// Latest pickup info
+		const p = getLatestPickupInfoForItem(Number(req.params.id));
+
 		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
 				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
 				<svg x=\"16\" y=\"16\" width=\"${size}\" height=\"${size}\" viewBox=\"0 0 ${size} ${size}\">${qrInner}</svg>
 				<g font-family=\"Arial, Helvetica, sans-serif\" fill=\"#111827\">
 					<text x=\"${textX}\" y=\"36\" font-size=\"16\" font-weight=\"700\">${escapeXml(row.name || 'Item')}</text>
-					<text x=\"${textX}\" y=\"60\" font-size=\"12\">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
-					<text x=\"${textX}\" y=\"78\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
-					<text x=\"${textX}\" y=\"96\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
-					<text x=\"${textX}\" y=\"114\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Weight: ${escapeXml(weightStr)} kg</text>
-					<text x=\"${textX}\" y=\"150\" font-size=\"12\">Age: ${escapeXml(ageDays != null ? ageDays + ' days' : 'N/A')}</text>
-					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
-					<text x=\"${textX}\" y=\"194\" font-size=\"12\" font-weight=\"700\">Timeline</text>
-					<text x=\"${textX}\" y=\"212\" font-size=\"12\">Reported: ${escapeXml(reportedAt || '—')}</text>
-					<text x=\"${textX}\" y=\"230\" font-size=\"12\">Scheduled: ${escapeXml(scheduledAt || '—')}</text>
-					<text x=\"${textX}\" y=\"248\" font-size=\"12\">Picked up: ${escapeXml(pickedAt || '—')}</text>
-					<text x=\"${textX}\" y=\"266\" font-size=\"12\">${escapeXml(processedLabel || 'Processed')}: ${escapeXml(processedAt || '—')}</text>
-					<text x=\"${textX}\" y=\"292\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x=\"${textX}\" y=\"310\" font-size=\"12\">Created: ${escapeXml(row.created_at)}</text>
-					<text x=\"${textX}\" y=\"328\" font-size=\"12\">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x=\"${textX}\" y=\"56\" font-size=\"12\">Facility: ${escapeXml(settings.facility_name || '')}</text>
+					<text x=\"${textX}\" y=\"72\" font-size=\"12\">Auth: ${escapeXml(settings.facility_authorization_no || '')}</text>
+					<text x=\"${textX}\" y=\"88\" font-size=\"12\">Contact: ${escapeXml(settings.facility_contact_name || '')} ${settings.facility_contact_phone ? '| ' + escapeXml(settings.facility_contact_phone) : ''}</text>
+					<text x=\"${textX}\" y=\"104\" font-size=\"12\">Address: ${escapeXml((settings.facility_address || '').slice(0, 60))}</text>
+					<text x=\"${textX}\" y=\"126\" font-size=\"12\">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"142\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
+					<text x=\"${textX}\" y=\"158\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"174\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"190\" font-size=\"12\">Weight: ${escapeXml(weightStr)} kg</text>
+					<text x=\"${textX}\" y=\"206\" font-size=\"12\">Age: ${escapeXml(ageDays != null ? ageDays + ' days' : 'N/A')}</text>
+					<text x=\"${textX}\" y=\"222\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"246\" font-size=\"12\" font-weight=\"700\">Timeline</text>
+					<text x=\"${textX}\" y=\"262\" font-size=\"12\">Reported: ${escapeXml(reportedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"278\" font-size=\"12\">Scheduled: ${escapeXml(scheduledAt || '—')}</text>
+					<text x=\"${textX}\" y=\"294\" font-size=\"12\">Picked up: ${escapeXml(pickedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"310\" font-size=\"12\">${escapeXml(processedLabel || 'Processed')}: ${escapeXml(processedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"334\" font-size=\"12\" font-weight=\"700\">Vendor & Transport</text>
+					<text x=\"${textX}\" y=\"350\" font-size=\"12\">Vendor: ${escapeXml(p?.vendor_name || '—')} ${p?.vendor_type ? '(' + escapeXml(p.vendor_type) + ')' : ''}</text>
+					<text x=\"${textX}\" y=\"366\" font-size=\"12\">License: ${escapeXml(p?.vendor_license || '—')}</text>
+					<text x=\"${textX}\" y=\"382\" font-size=\"12\">Contact: ${escapeXml(p?.vendor_contact_name || '—')} ${p?.vendor_phone ? '| ' + escapeXml(p.vendor_phone) : ''} ${p?.vendor_email ? '| ' + escapeXml(p.vendor_email) : ''}</text>
+					<text x=\"${textX}\" y=\"398\" font-size=\"12\">Address: ${escapeXml((p?.vendor_address || '—').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"414\" font-size=\"12\">Manifest: ${escapeXml(p?.manifest_no || '—')}</text>
+					<text x=\"${textX}\" y=\"430\" font-size=\"12\">Transporter: ${escapeXml(p?.transporter_name || '—')} ${p?.vehicle_no ? '| ' + escapeXml(p.vehicle_no) : ''} ${p?.transporter_contact ? '| ' + escapeXml(p.transporter_contact) : ''}</text>
+					<text x=\"${textX}\" y=\"456\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"472\" font-size=\"12\">Created: ${escapeXml(row.created_at)}</text>
+					<text x=\"${textX}\" y=\"488\" font-size=\"12\">Updated: ${escapeXml(row.updated_at)}</text>
 					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(dayjs().format('YYYY-MM-DD HH:mm:ss'))}</text>
 				</g>
 			</svg>`;
@@ -304,116 +175,5 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		next(e);
 	}
 });
-
-router.get('/:id/label.png', async (req, res, next) => {
-	try {
-		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
-		if (!row) return res.status(404).send('Not found');
-		const size = Math.max(400, Math.min(1000, Number(req.query.size) || 800));
-		const canvasWidth = size + 500;
-		const canvasHeight = Math.max(size + 120, 500);
-		const png = await generateQrPngBuffer(row.qr_uid, size);
-		// Compose a simple PNG by embedding QR alone; metadata text is handled in SVG label.
-		res.setHeader('Content-Type', 'image/png');
-		res.send(png);
-	} catch (e) {
-		next(e);
-	}
-});
-
-router.get('/:id/label.pdf', async (req, res, next) => {
-	try {
-		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
-		if (!row) return res.status(404).send('Not found');
-		const qrSize = Math.max(200, Math.min(700, Number(req.query.size) || 360)); // points
-		const pageWidth = qrSize + 360;
-		const pageHeight = Math.max(qrSize + 200, 600);
-		const margin = 20;
-		const textX = margin + qrSize + 20;
-
-		const png = await generateQrPngBuffer(row.qr_uid, Math.round(qrSize));
-
-		// Timeline
-		const evs = db.prepare('SELECT event_type, created_at FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
-		const findAt = (k) => evs.find(e => e.event_type === k)?.created_at || null;
-		const reportedAt = findAt('reported') || row.created_at;
-		const scheduledAt = findAt('scheduled_for_pickup') || null;
-		const pickedAt = findAt('status_picked_up') || null;
-		const recycledAt = findAt('status_recycled') || null;
-		const refurbAt = findAt('status_refurbished') || null;
-		const disposedAt = findAt('status_disposed') || null;
-		const processedLabel = recycledAt ? 'Recycled' : refurbAt ? 'Refurbished' : disposedAt ? 'Disposed' : 'Processed';
-		const processedAt = recycledAt || refurbAt || disposedAt || null;
-		const ageBase = row.purchase_date || row.created_at;
-		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
-		const weightStr = (row.weight_kg || 0) + ' kg';
-
-		res.setHeader('Content-Type', 'application/pdf');
-		res.setHeader('Content-Disposition', `inline; filename="label_item_${row.id}.pdf"`);
-
-		const doc = new PDFDocument({ size: [pageWidth, pageHeight], margin });
-		doc.pipe(res);
-
-		// QR
-		doc.image(png, margin, margin, { width: qrSize, height: qrSize });
-
-		// Heading and meta
-		doc.fontSize(16).text(row.name || 'Item', textX, margin, { width: pageWidth - textX - margin, continued: false });
-		doc.fontSize(11);
-		doc.text(`Dept: ${row.department_name || 'N/A'}`, textX);
-		doc.text(`Status: ${row.status}`, textX);
-		doc.text(`Category: ${row.category_key || 'N/A'}`, textX);
-		doc.text(`Condition: ${row.condition || 'N/A'}`, textX);
-		doc.text(`Weight: ${weightStr}`, textX);
-		doc.text(`Age: ${ageDays != null ? ageDays + ' days' : 'N/A'}`, textX);
-		doc.text(`Desc: ${(row.description || 'N/A').slice(0, 120)}`, textX, undefined, { width: pageWidth - textX - margin });
-
-		// Timeline
-		doc.moveDown(0.5);
-		doc.fontSize(12).text('Timeline', textX, undefined, { underline: true });
-		doc.fontSize(10);
-		doc.text(`Reported: ${reportedAt || '—'}`, textX);
-		doc.text(`Scheduled: ${scheduledAt || '—'}`, textX);
-		doc.text(`Picked up: ${pickedAt || '—'}`, textX);
-		doc.text(`${processedLabel}: ${processedAt || '—'}`, textX);
-
-		// Footer
-		doc.moveDown(0.5);
-		doc.fontSize(9).text(`QR UID: ${row.qr_uid}`, textX);
-		doc.fontSize(9).text(`Created: ${row.created_at}`, textX);
-		doc.fontSize(9).text(`Updated: ${row.updated_at}`, textX);
-		doc.fontSize(8).fillColor('#6b7280').text(`Printed: ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`, margin, pageHeight - margin - 12);
-
-		doc.end();
-	} catch (e) {
-		next(e);
-	}
-});
-
-router.delete('/:id', (req, res) => {
-	const id = Number(req.params.id);
-	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
-	if (!existing) return res.status(404).json({ error: 'Item not found' });
-	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(id).map(r => r.pickup_id);
-	// Delete item (cascades to item_events and pickup_items)
-	db.prepare('DELETE FROM items WHERE id = ?').run(id);
-	// Recompute pickups that referenced this item
-	for (const pid of pickupIds) {
-		recomputePickupStatus(pid);
-	}
-	return res.json({ ok: true });
-});
-
-function recomputePickupStatus(pickupId) {
-	const rows = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
-	if (rows.length === 0) return;
-	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
-	const allFinal = rows.every(r => finalStatuses.has(r.status));
-	db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(allFinal ? 'completed' : 'scheduled', pickupId);
-}
-
-function escapeXml(s) {
-	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
 
 export default router;
