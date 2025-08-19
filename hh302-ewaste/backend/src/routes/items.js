@@ -8,15 +8,14 @@ import { formatInTz, nowInTz } from '../time.js';
 
 const router = express.Router();
 
-function toIsoFlexible(input) {
+function normalizeLocalTime(input) {
 	if (!input) return null;
 	let s = String(input).trim();
 	if (!s) return null;
-	if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}$/.test(s)) s = s.replace(' ', 'T');
-	if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) s = s + ':00';
-	const d = new Date(s);
-	if (isNaN(d.getTime())) return null;
-	return d.toISOString();
+	if (s.includes('T')) s = s.replace('T', ' ');
+	const d = dayjs(s);
+	if (!d.isValid()) return null;
+	return d.format('YYYY-MM-DD HH:mm:ss');
 }
 
 function mapItem(row) {
@@ -79,7 +78,7 @@ router.post('/', (req, res) => {
 	} = req.body || {};
 
 	if (!name) return res.status(400).json({ error: 'name is required' });
-	const rt = toIsoFlexible(reported_time);
+	const rt = normalizeLocalTime(reported_time);
 	if (reported_time && !rt) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 	if (rt) now = rt;
 
@@ -87,7 +86,7 @@ router.post('/', (req, res) => {
 	if (!purchaseToUse && (age_months ?? '') !== '') {
 		const m = Number(age_months);
 		if (!isNaN(m) && m > 0) {
-			purchaseToUse = dayjs(now).subtract(m, 'month').toISOString();
+			purchaseToUse = dayjs(now).subtract(m, 'month').format('YYYY-MM-DD');
 		}
 	}
 
@@ -189,7 +188,7 @@ router.post('/:id/status', (req, res) => {
 		if ((status === 'recycled' || status === 'refurbished' || status === 'disposed') && existing.status !== 'picked_up') {
 			return res.status(400).json({ error: 'Only items currently picked up can be marked as recycled/refurbished/disposed' });
 		}
-		const at = toIsoFlexible(req.body.manual_time || req.body.at);
+		const at = normalizeLocalTime(req.body.manual_time || req.body.at);
 		if (!at) return res.status(400).json({ error: 'manual_time is invalid or missing. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 		db.prepare('UPDATE items SET status = ?, updated_at = ? WHERE id = ?').run(status, at, req.params.id);
 		db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
@@ -219,12 +218,7 @@ function updatePickupsForItem(itemId, now) {
 		const newStatus = allFinal ? 'completed' : 'scheduled';
 		if (pickup.status !== newStatus) {
 			db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(newStatus, pickupId);
-			if (newStatus === 'completed') {
-				const insertEvent = db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)');
-				for (const r of rows) {
-					insertEvent.run(r.id, 'pickup_completed', `Pickup ${pickupId} completed`, now);
-				}
-			}
+			// No extra item_events here to avoid duplication
 		}
 	}
 }
