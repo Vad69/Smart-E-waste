@@ -7,17 +7,39 @@ export default function Dashboard() {
 	const [statusTrends, setStatusTrends] = useState([]);
 	const [impactTrends, setImpactTrends] = useState([]);
 	const [granularity, setGranularity] = useState('month');
+	const [selectedMonth, setSelectedMonth] = useState(() => {
+		const d = new Date();
+		const m = String(d.getMonth() + 1).padStart(2, '0');
+		return `${d.getFullYear()}-${m}`; // YYYY-MM for <input type="month">
+	});
 	const [segments, setSegments] = useState({ byDept: [], byCategory: [] });
 	const [impact, setImpact] = useState(null);
 
+	function monthRange(ym) {
+		// ym: YYYY-MM
+		const [y, m] = ym.split('-').map(Number);
+		const start = new Date(y, m - 1, 1);
+		const end = new Date(y, m, 0); // last day of month
+		const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+		return { from: `${iso(start)}T00:00:00Z`, to: `${iso(end)}T23:59:59Z` };
+	}
+
 	useEffect(() => {
+		const qs = new URLSearchParams();
+		qs.set('granularity', granularity);
+		let qsDay = '';
+		if (granularity === 'day') {
+			const { from, to } = monthRange(selectedMonth);
+			qs.set('from', from); qs.set('to', to);
+			qsDay = `&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+		}
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
-		fetch(`/api/analytics/trends?granularity=${granularity}`).then(r => r.json()).then(d => setTrends(d.daily || d.monthly || []));
-		fetch(`/api/analytics/status-trends?granularity=${granularity}`).then(r => r.json()).then(d => setStatusTrends(d.daily || d.monthly || []));
-		fetch(`/api/analytics/impact-trends?granularity=${granularity}`).then(r => r.json()).then(d => setImpactTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/trends?${qs.toString()}`).then(r => r.json()).then(d => setTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/status-trends?granularity=${granularity}${qsDay}`).then(r => r.json()).then(d => setStatusTrends(d.daily || d.monthly || []));
+		fetch(`/api/analytics/impact-trends?granularity=${granularity}${qsDay}`).then(r => r.json()).then(d => setImpactTrends(d.daily || d.monthly || []));
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
-	}, [granularity]);
+	}, [granularity, selectedMonth]);
 
 	const xKey = granularity === 'day' ? 'd' : 'ym';
 
@@ -63,7 +85,10 @@ export default function Dashboard() {
 			<div className="card" style={{ height: 380, marginBottom: 16 }}>
 				<div className="row" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
 					<h3 style={{ margin: 0 }}>{granularity === 'day' ? 'Daily Trends' : 'Monthly Trends'}</h3>
-					<div className="row" style={{ gap: 8 }}>
+					<div className="row" style={{ gap: 8, alignItems: 'center' }}>
+						{granularity === 'day' && (
+							<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+						)}
 						<label className="row" style={{ gap: 6 }}>
 							<input type="radio" name="gran" checked={granularity === 'day'} onChange={() => setGranularity('day')} /> Day
 						</label>
@@ -89,6 +114,11 @@ export default function Dashboard() {
 
 			<div className="card" style={{ height: 360, marginBottom: 16 }}>
 				<h3>Status Outcomes Over Time (Weight)</h3>
+				{granularity === 'day' && (
+					<div className="row" style={{ marginBottom: 8 }}>
+						<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+					</div>
+				)}
 				<ResponsiveContainer width="100%" height="100%">
 					<LineChart data={statusTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 						<CartesianGrid strokeDasharray="3 3" />
@@ -130,6 +160,11 @@ export default function Dashboard() {
 				</div>
 				<div className="card" style={{ height: 360 }}>
 					<h3>Impact Over Time</h3>
+					{granularity === 'day' && (
+						<div className="row" style={{ marginBottom: 8 }}>
+							<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+						</div>
+					)}
 					<ResponsiveContainer width="100%" height="100%">
 						<LineChart data={impactTrends} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
 							<CartesianGrid strokeDasharray="3 3" />
