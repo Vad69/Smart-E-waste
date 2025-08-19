@@ -45,8 +45,21 @@ function mapItem(row) {
 
 function getLatestPickupInfoForItem(itemId) {
 	const p = db.prepare(`
-		SELECT p.*, v.name as vendor_name, v.type as vendor_type, v.license_no as vendor_license,
-		       v.contact_name as vendor_contact_name, v.phone as vendor_phone, v.email as vendor_email, v.address as vendor_address
+		SELECT p.*,
+		       v.name as vendor_name,
+		       v.type as vendor_type,
+		       v.license_no as vendor_license,
+		       v.contact_name as vendor_contact_name,
+		       v.phone as vendor_phone,
+		       v.email as vendor_email,
+		       v.address as vendor_address,
+		       v.authorization_no as vendor_authorization_no,
+		       v.auth_valid_from as vendor_auth_valid_from,
+		       v.auth_valid_to as vendor_auth_valid_to,
+		       v.gst_no as vendor_gst_no,
+		       v.capacity_tpm as vendor_capacity_tpm,
+		       v.categories_handled as vendor_categories_handled,
+		       v.active as vendor_active
 		FROM pickups p
 		JOIN pickup_items pi ON p.id = pi.pickup_id
 		JOIN vendors v ON v.id = p.vendor_id
@@ -229,6 +242,13 @@ router.get('/:id/pickup-info', (req, res) => {
 		vendor_phone: p.vendor_phone,
 		vendor_email: p.vendor_email,
 		vendor_address: p.vendor_address,
+		vendor_authorization_no: p.vendor_authorization_no,
+		vendor_auth_valid_from: p.vendor_auth_valid_from,
+		vendor_auth_valid_to: p.vendor_auth_valid_to,
+		vendor_gst_no: p.vendor_gst_no,
+		vendor_capacity_tpm: p.vendor_capacity_tpm,
+		vendor_categories_handled: p.vendor_categories_handled,
+		vendor_active: p.vendor_active,
 		manifest_no: p.manifest_no,
 		transporter_name: p.transporter_name,
 		vehicle_no: p.vehicle_no,
@@ -312,13 +332,18 @@ router.get('/:id/label.svg', async (req, res, next) => {
 					<text x="${textX}" y="334" font-size="12" font-weight="700">Vendor &amp; Transport</text>
 					<text x="${textX}" y="350" font-size="12">Vendor: ${escapeXml(p?.vendor_name || '—')} ${p?.vendor_type ? '(' + escapeXml(p.vendor_type) + ')' : ''}</text>
 					<text x="${textX}" y="366" font-size="12">License: ${escapeXml(p?.vendor_license || '—')}</text>
-					<text x="${textX}" y="382" font-size="12">Contact: ${escapeXml(p?.vendor_contact_name || '—')} ${p?.vendor_phone ? '| ' + escapeXml(p.vendor_phone) : ''} ${p?.vendor_email ? '| ' + escapeXml(p.vendor_email) : ''}</text>
-					<text x="${textX}" y="398" font-size="12">Address: ${escapeXml((p?.vendor_address || '—').slice(0,60))}</text>
-					<text x="${textX}" y="414" font-size="12">Manifest: ${escapeXml(p?.manifest_no || '—')}</text>
-					<text x="${textX}" y="430" font-size="12">Transporter: ${escapeXml(p?.transporter_name || '—')} ${p?.vehicle_no ? '| ' + escapeXml(p.vehicle_no) : ''} ${p?.transporter_contact ? '| ' + escapeXml(p.transporter_contact) : ''}</text>
-					<text x="${textX}" y="456" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x="${textX}" y="472" font-size="12">Created: ${escapeXml(row.created_at)}</text>
-					<text x="${textX}" y="488" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x="${textX}" y="382" font-size="12">Authorization: ${escapeXml(p?.vendor_authorization_no || '—')}</text>
+					<text x="${textX}" y="398" font-size="12">Validity: ${escapeXml(p?.vendor_auth_valid_from || '—')} to ${escapeXml(p?.vendor_auth_valid_to || '—')}</text>
+					<text x="${textX}" y="414" font-size="12">GST: ${escapeXml(p?.vendor_gst_no || '—')}</text>
+					<text x="${textX}" y="430" font-size="12">Contact: ${escapeXml(p?.vendor_contact_name || '—')} ${p?.vendor_phone ? '| ' + escapeXml(p.vendor_phone) : ''} ${p?.vendor_email ? '| ' + escapeXml(p.vendor_email) : ''}</text>
+					<text x="${textX}" y="446" font-size="12">Address: ${escapeXml((p?.vendor_address || '—').slice(0,60))}</text>
+					<text x="${textX}" y="462" font-size="12">Categories: ${escapeXml(p?.vendor_categories_handled || '—')}</text>
+					<text x="${textX}" y="478" font-size="12">Capacity (TPM): ${escapeXml(String(p?.vendor_capacity_tpm ?? '—'))}</text>
+					<text x="${textX}" y="494" font-size="12">Manifest: ${escapeXml(p?.manifest_no || '—')}</text>
+					<text x="${textX}" y="510" font-size="12">Transporter: ${escapeXml(p?.transporter_name || '—')} ${p?.vehicle_no ? '| ' + escapeXml(p.vehicle_no) : ''} ${p?.transporter_contact ? '| ' + escapeXml(p.transporter_contact) : ''}</text>
+					<text x="${textX}" y="536" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x="${textX}" y="552" font-size="12">Created: ${escapeXml(row.created_at)}</text>
+					<text x="${textX}" y="568" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
 					<text x="16" y="${labelHeight - 16}" font-size="10" fill="#6b7280">Printed: ${escapeXml(dayjs().format('YYYY-MM-DD HH:mm:ss'))}</text>
 				</g>
 			</svg>`;
