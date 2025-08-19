@@ -39,10 +39,16 @@ export default function Pickups() {
 	const [pickups, setPickups] = useState([]);
 
 	function loadSuggest() {
-		fetch(`/api/pickups/suggest?vendor_type=${vendorType}`).then(r => r.json()).then(setSuggested);
+		fetch(`/api/pickups/suggest?vendor_type=${vendorType}`)
+			.then(r => r.json())
+			.then(d => setSuggested({ suggested_items: Array.isArray(d?.suggested_items) ? d.suggested_items : [], vendors: Array.isArray(d?.vendors) ? d.vendors : [] }))
+			.catch(() => setSuggested({ suggested_items: [], vendors: [] }));
 	}
 	function loadPickups() {
-		fetch('/api/pickups').then(r => r.json()).then(d => setPickups(d.pickups));
+		fetch('/api/pickups')
+			.then(r => r.json())
+			.then(d => setPickups(Array.isArray(d?.pickups) ? d.pickups : []))
+			.catch(() => setPickups([]));
 	}
 	useEffect(() => { loadSuggest(); }, [vendorType]);
 	useEffect(() => { loadPickups(); }, []);
@@ -68,7 +74,7 @@ export default function Pickups() {
 					</select>
 					<select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} required>
 						<option value="">Select vendor</option>
-						{suggested.vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+						{(suggested.vendors || []).map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
 					</select>
 					<input className="input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} required />
 					<input className="input" placeholder="Manifest No" value={manifest.manifest_no} onChange={e => setManifest(m => ({ ...m, manifest_no: e.target.value }))} />
@@ -92,7 +98,7 @@ export default function Pickups() {
 						</tr>
 					</thead>
 					<tbody>
-						{suggested.suggested_items.map(i => (
+						{(suggested.suggested_items || []).map(i => (
 							<tr key={i.id}>
 								<td><input type="checkbox" checked={selectedItems.includes(i.id)} onChange={() => toggleItem(i.id)} /></td>
 								<td className="mono">{i.id}</td>
@@ -122,7 +128,7 @@ export default function Pickups() {
 						</tr>
 					</thead>
 					<tbody>
-						{pickups.map(p => (
+						{(pickups || []).map(p => (
 							<tr key={p.id}>
 								<td className="mono">{p.id}</td>
 								<td>{p.vendor_name || p.vendor_id}</td>
