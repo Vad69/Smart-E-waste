@@ -2,7 +2,7 @@ import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
-import { generateQrSvg } from '../services/qr.js';
+import { generateQrSvg, generateQrPngBuffer } from '../services/qr.js';
 import { formatInTz, nowInTz } from '../time.js';
 
 const router = express.Router();
@@ -213,6 +213,22 @@ router.get('/:id/label.svg', async (req, res, next) => {
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
+	} catch (e) {
+		next(e);
+	}
+});
+
+router.get('/:id/label.png', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const size = Math.max(400, Math.min(1000, Number(req.query.size) || 800));
+		const canvasWidth = size + 500;
+		const canvasHeight = Math.max(size + 120, 500);
+		const png = await generateQrPngBuffer(row.qr_uid, size);
+		// Compose a simple PNG by embedding QR alone; metadata text is handled in SVG label.
+		res.setHeader('Content-Type', 'image/png');
+		res.send(png);
 	} catch (e) {
 		next(e);
 	}
