@@ -51,7 +51,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-	const now = nowIso();
+	let now = nowIso();
 	const {
 		name,
 		description = '',
@@ -62,10 +62,16 @@ router.post('/', (req, res) => {
 		serial_number = null,
 		asset_tag = null,
 		reported_by = null,
-		category_key: categoryOverride = null
+		category_key: categoryOverride = null,
+		reported_time = null
 	} = req.body || {};
 
 	if (!name) return res.status(400).json({ error: 'name is required' });
+	if (reported_time) {
+		const parsed = dayjs(reported_time);
+		if (!parsed.isValid()) return res.status(400).json({ error: 'reported_time is invalid. Use YYYY-MM-DD HH:mm or a valid ISO string' });
+		now = parsed.toISOString();
+	}
 
 	const qr_uid = uuidv4();
 	let category_key = null;
