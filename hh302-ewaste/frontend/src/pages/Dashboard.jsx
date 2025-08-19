@@ -3,6 +3,7 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContai
 
 export default function Dashboard() {
 	const [summary, setSummary] = useState(null);
+	const [campaignsCount, setCampaignsCount] = useState(0);
 	const [dailyTrends, setDailyTrends] = useState([]);
 	const [dailyStatusTrends, setDailyStatusTrends] = useState([]);
 	const [dailyImpactTrends, setDailyImpactTrends] = useState([]);
@@ -56,6 +57,7 @@ export default function Dashboard() {
 		fetchMonthly();
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
+		fetch('/api/campaigns').then(r => r.json()).then(d => setCampaignsCount(Array.isArray(d.campaigns) ? d.campaigns.length : 0));
 	}, []);
 
 	// Refetch monthly whenever toggled back to Month view
@@ -99,7 +101,7 @@ export default function Dashboard() {
 
 	return (
 		<div className="grid">
-			<div className="grid cols-3">
+			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
 				<div className="card">
 					<h3>Total Items</h3>
 					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.totalItems ?? '—'}</div>
@@ -111,6 +113,21 @@ export default function Dashboard() {
 				<div className="card">
 					<h3>Recovery Rate</h3>
 					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary ? Math.round(summary.recoveryRate * 100) + '%' : '—'}</div>
+				</div>
+				<div className="card">
+					<h3>CO2e Saved (kg)</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{impact?.co2eSavedKg?.toFixed?.(1) ?? '—'}</div>
+				</div>
+				<div className="card">
+					<h3>Hazardous Prevented (kg)</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{impact?.hazardousPreventedKg?.toFixed?.(1) ?? '—'}</div>
+				</div>
+			</div>
+
+			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+				<div className="card">
+					<h3>Total Campaigns</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{campaignsCount}</div>
 				</div>
 			</div>
 
