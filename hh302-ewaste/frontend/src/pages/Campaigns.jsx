@@ -23,7 +23,7 @@ export default function Campaigns() {
 
 	const [drives, setDrives] = useState([]);
 	const [driveForm, setDriveForm] = useState({ title: '', description: '', start_date: '', end_date: '', location: '', points: 20 });
-	const [attendForm, setAttendForm] = useState({ drive_id: '', user_id: '' });
+	const [attendForm, setAttendForm] = useState({ drive_id: '', user_id: '', user_name: '', department_name: '' });
 
 	const [rewards, setRewards] = useState([]);
 	const [rewardForm, setRewardForm] = useState({ title: '', description: '', cost_points: '', stock: '' });
@@ -77,8 +77,8 @@ export default function Campaigns() {
 	}
 	function attendDrive(e) {
 		e.preventDefault(); if (!attendForm.drive_id) return;
-		fetch(`/api/campaigns/drives/${attendForm.drive_id}/attend`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: attendForm.user_id }) })
-			.then(() => { setAttendForm({ drive_id: '', user_id: '' }); loadLeaderboard(); });
+		fetch(`/api/campaigns/drives/${attendForm.drive_id}/attend`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: attendForm.user_id, user_name: attendForm.user_name, department_name: attendForm.department_name }) })
+			.then(() => { setAttendForm({ drive_id: '', user_id: '', user_name: '', department_name: '' }); loadLeaderboard(); });
 	}
 	function addReward(e) {
 		e.preventDefault();
@@ -89,7 +89,16 @@ export default function Campaigns() {
 	function redeemReward(e) {
 		e.preventDefault(); if (!redeemForm.reward_id) return;
 		fetch(`/api/campaigns/rewards/${redeemForm.reward_id}/redeem`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: redeemForm.user_id, user_name: redeemForm.user_name, department_name: redeemForm.department_name }) })
-			.then(() => setRedeemForm({ reward_id: '', user_id: '', user_name: '', department_name: '' }));
+			.then(async r => {
+				if (!r.ok) {
+					const err = await r.json().catch(() => ({}));
+					throw new Error(err?.error || 'Failed to redeem');
+				}
+				setRedeemForm({ reward_id: '', user_id: '', user_name: '', department_name: '' });
+				loadRewards();
+				loadLeaderboard();
+			})
+			.catch(e => alert(e.message || 'Failed to redeem'));
 	}
 	function checkBalance(e) {
 		e.preventDefault();
@@ -245,6 +254,8 @@ export default function Campaigns() {
 						{drives.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
 					</select>
 					<input className="input" placeholder="User ID" value={attendForm.user_id} onChange={e => setAttendForm(v => ({ ...v, user_id: e.target.value }))} />
+					<input className="input" placeholder="User Name (first name)" value={attendForm.user_name} onChange={e => setAttendForm(v => ({ ...v, user_name: e.target.value }))} />
+					<input className="input" placeholder="Department" value={attendForm.department_name} onChange={e => setAttendForm(v => ({ ...v, department_name: e.target.value }))} />
 					<button className="btn" type="submit">Mark Attendance & Award</button>
 				</form>
 			</Section>
@@ -312,6 +323,7 @@ export default function Campaigns() {
 							<th>User</th>
 							<th>User ID</th>
 							<th>Dept</th>
+							<th>Redeemed</th>
 							<th>Points</th>
 						</tr>
 					</thead>
@@ -321,6 +333,7 @@ export default function Campaigns() {
 								<td>{e.user_name || e.user_id}</td>
 								<td className="mono">{e.user_id}</td>
 								<td className="mono">{e.department_name || '—'}</td>
+								<td className="mono">{e.redeemed_points || 0}</td>
 								<td className="mono">{e.points}</td>
 							</tr>
 						))}
