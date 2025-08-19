@@ -9,7 +9,7 @@ export default function Items() {
 	const [department, setDepartment] = useState('');
 	const [category, setCategory] = useState('');
 	const [departments, setDepartments] = useState([]);
-	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '' });
+	const [form, setForm] = useState({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
 
 	function load() {
 		const params = new URLSearchParams();
@@ -32,12 +32,14 @@ export default function Items() {
 			...form,
 			weight_kg: form.weight_kg ? parseFloat(form.weight_kg) : 0,
 			department_id: form.department_id ? Number(form.department_id) : null,
-			category_key: form.category_key || undefined
+			category_key: form.category_key || undefined,
+			purchase_date: form.purchase_date || null,
+			reported_time: form.reported_time || undefined
 		};
 		fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
-				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '' });
+				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', purchase_date: '', reported_time: '' });
 				load();
 			});
 	}
@@ -88,6 +90,8 @@ export default function Items() {
 					</select>
 					<input className="input" placeholder="Condition (e.g., good/poor)" value={form.condition} onChange={e => setForm(v => ({ ...v, condition: e.target.value }))} />
 					<input className="input" placeholder="Weight (kg)" value={form.weight_kg} onChange={e => setForm(v => ({ ...v, weight_kg: e.target.value }))} />
+					<input className="input" type="date" value={form.purchase_date} onChange={e => setForm(v => ({ ...v, purchase_date: e.target.value }))} />
+					<input className="input" type="datetime-local" value={form.reported_time} onChange={e => setForm(v => ({ ...v, reported_time: e.target.value.replace('T',' ') }))} />
 					<button className="btn" type="submit">Submit</button>
 				</form>
 			</div>
@@ -139,9 +143,9 @@ export default function Items() {
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
 									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'scheduled'}>Pick up</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'scheduled'}>Recycle</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'scheduled'}>Refurbish</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'scheduled'}>Dispose</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycle</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'picked_up'}>Refurbish</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'picked_up'}>Dispose</button>
 									<button className="btn secondary" onClick={() => deleteItem(i.id)} style={{ marginLeft: 6 }}>Delete</button>
 								</td>
 							</tr>

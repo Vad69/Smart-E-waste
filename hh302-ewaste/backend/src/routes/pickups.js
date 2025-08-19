@@ -61,8 +61,8 @@ router.post('/', (req, res) => {
 		const item = db.prepare('SELECT * FROM items WHERE id = ?').get(itemId);
 		if (!item) continue;
 		insertPI.run(pickup_id, itemId);
-		updateItem.run('scheduled', now, itemId);
-		insertEvent.run(itemId, 'scheduled_for_pickup', `Pickup ${pickup_id} on ${scheduled_date}`, now);
+		updateItem.run('scheduled', scheduled_date, itemId);
+		insertEvent.run(itemId, 'scheduled_for_pickup', `Pickup ${pickup_id} on ${scheduled_date}`, scheduled_date);
 	}
 
 	const row = db.prepare('SELECT * FROM pickups WHERE id = ?').get(pickup_id);

@@ -4,7 +4,7 @@ const COLORS = { reported: '#94a3b8', scheduled: '#0ea5e9', picked_up: '#f59e0b'
 
 function BreakdownBar({ counts }) {
 	const total = Object.values(counts || {}).reduce((a, b) => a + (b || 0), 0) || 1;
-	const keys = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	const keys = ['scheduled','picked_up','recycled','refurbished','disposed'];
 	return (
 		<div style={{ display: 'flex', width: 260, height: 12, borderRadius: 6, overflow: 'hidden', border: '1px solid #e5e7eb', background: '#f8fafc' }}>
 			{keys.map(k => {
@@ -16,7 +16,7 @@ function BreakdownBar({ counts }) {
 }
 
 function Legend() {
-	const keys = ['reported','scheduled','picked_up','recycled','refurbished','disposed'];
+	const keys = ['scheduled','picked_up','recycled','refurbished','disposed'];
 	return (
 		<div className="row wrap" style={{ gap: 12, margin: '6px 0 12px 0' }}>
 			{keys.map(k => (
@@ -69,7 +69,7 @@ export default function Pickups() {
 						<option value="">Select vendor</option>
 						{suggested.vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
 					</select>
-					<input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+					<input className="input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} required />
 					<button className="btn" type="submit" disabled={!selectedVendor || selectedItems.length === 0}>Schedule</button>
 				</form>
 			</div>
@@ -109,7 +109,6 @@ export default function Pickups() {
 							<th>ID</th>
 							<th>Vendor</th>
 							<th>Date</th>
-							<th>Status</th>
 							<th>Items</th>
 							<th>Breakdown</th>
 							<th>Scheduled Items</th>
@@ -121,8 +120,7 @@ export default function Pickups() {
 							<tr key={p.id}>
 								<td className="mono">{p.id}</td>
 								<td>{p.vendor_name || p.vendor_id}</td>
-								<td>{p.scheduled_date?.slice?.(0,10)}</td>
-								<td>{p.status}</td>
+								<td>{p.scheduled_date?.replace?.('T',' ').slice?.(0,16)}</td>
 								<td>{p.item_count}</td>
 								<td><BreakdownBar counts={p.counts} /></td>
 								<td style={{ maxWidth: 280 }}>
