@@ -13,6 +13,10 @@ router.get('/compliance.pdf', (req, res) => {
 	const fromIso = fromDate.toISOString();
 	const toIso = toDate.toISOString();
 
+	// Facility header
+	const settingsRows = db.prepare('SELECT key, value FROM settings').all();
+	const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+
 	const items = db.prepare(`
 		SELECT i.*, d.name as department_name FROM items i
 		LEFT JOIN departments d ON i.department_id = d.id
@@ -36,7 +40,6 @@ router.get('/compliance.pdf', (req, res) => {
 	const co2eSavedKg = recycledWeight * 1.5 + refurbishedWeight * 3.0;
 	const hazardousPreventedKg = disposedWeight * 0.5;
 
-	// Processed detail rows from events
 	const processedRows = (eventType) => db.prepare(`
 		SELECT ie.created_at as t, i.id as item_id, i.name as item_name,
 			(SELECT v.name FROM pickup_items pi
@@ -54,7 +57,6 @@ router.get('/compliance.pdf', (req, res) => {
 	const refurbishedRows = processedRows('status_refurbished');
 	const disposedRows = processedRows('status_disposed');
 
-	// Completed pickups (derive completion time as max terminal status time)
 	function getPickupCompletedAt(pickupId) {
 		const row = db.prepare(`
 			SELECT MAX(ie.created_at) as t
@@ -82,6 +84,12 @@ router.get('/compliance.pdf', (req, res) => {
 	const doc = new PDFDocument({ margin: 40 });
 	doc.pipe(res);
 
+	// Facility header
+	doc.fontSize(14).text(settings.facility_name || 'Facility', { align: 'left' });
+	doc.fontSize(10).text(`Address: ${settings.facility_address || ''}`);
+	doc.text(`Authorization No: ${settings.facility_authorization_no || ''}`);
+	doc.moveDown(0.5);
+
 	doc.fontSize(18).text('E-Waste Compliance Report', { align: 'center' });
 	doc.moveDown(0.5);
 	doc.fontSize(10).text(`Period: ${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')} | TZ: ${DEFAULT_TZ} | Generated: ${nowInTz()}`, { align: 'center' });
@@ -96,13 +104,16 @@ router.get('/compliance.pdf', (req, res) => {
 	doc.text(`Impact: CO2e saved ${co2eSavedKg.toFixed(1)} kg | Hazardous prevented ${hazardousPreventedKg.toFixed(1)} kg`);
 	doc.moveDown(1);
 
-	// Pickups scheduled (table)
+	// Pickups scheduled (manifest/transporter)
 	doc.fontSize(12).text('Pickups Scheduled', { underline: true });
 	if (pickups.length === 0) {
 		doc.text('No pickups scheduled');
 	} else {
 		pickups.forEach(p => {
 			doc.fontSize(10).text(`Pickup #${p.id} | Vendor: ${p.vendor_name} | Scheduled: ${p.scheduled_date}`);
+			if (p.manifest_no || p.transporter_name || p.vehicle_no) {
+				doc.fontSize(9).text(`   Manifest: ${p.manifest_no || '—'} | Transporter: ${p.transporter_name || '—'} | Vehicle: ${p.vehicle_no || '—'}`);
+			}
 			const itemsInPickup = db.prepare('SELECT i.id, i.name FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ? ORDER BY i.id ASC').all(p.id);
 			itemsInPickup.forEach(it => {
 				doc.fontSize(9).text(`   - #${it.id} ${it.name}`);
@@ -111,7 +122,7 @@ router.get('/compliance.pdf', (req, res) => {
 	}
 	doc.moveDown(1);
 
-	// Pickups completed (table)
+	// Pickups completed
 	doc.fontSize(12).text('Pickups Completed', { underline: true });
 	if (completedPickups.length === 0) {
 		doc.text('No pickups completed');
@@ -126,13 +137,10 @@ router.get('/compliance.pdf', (req, res) => {
 	}
 	doc.moveDown(1);
 
-	// Total processed tables
+	// Processed tables
 	function renderProcessed(title, rows) {
 		doc.fontSize(12).text(title, { underline: true });
-		if (rows.length === 0) {
-			doc.text('None');
-			return;
-		}
+		if (rows.length === 0) { doc.text('None'); doc.moveDown(0.5); return; }
 		rows.forEach(r => {
 			doc.fontSize(10).text(`${r.t} | Vendor: ${r.vendor_name || 'N/A'} | Item: #${r.item_id} ${r.item_name}`);
 		});

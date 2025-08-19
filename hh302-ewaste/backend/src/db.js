@@ -70,7 +70,8 @@ export function initializeDatabase() {
 			address TEXT,
 			type TEXT NOT NULL,
 			license_no TEXT,
-			created_at TEXT NOT NULL
+			created_at TEXT NOT NULL,
+			active INTEGER NOT NULL DEFAULT 1
 		);
 
 		CREATE TABLE IF NOT EXISTS pickups (
@@ -110,19 +111,26 @@ export function initializeDatabase() {
 			created_at TEXT NOT NULL,
 			FOREIGN KEY(campaign_id) REFERENCES campaigns(id)
 		);
+
+		CREATE TABLE IF NOT EXISTS settings (
+			key TEXT PRIMARY KEY,
+			value TEXT
+		);
 	`);
 
-	// Ensure vendors.active exists
-	const vendorCols = db.prepare('PRAGMA table_info(vendors)').all();
-	const hasActive = vendorCols.some(c => c.name === 'active');
-	if (!hasActive) {
-		try {
-			db.exec('ALTER TABLE vendors ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
-			// backfill not needed due to DEFAULT, but ensure all set to 1
-			db.exec('UPDATE vendors SET active = 1 WHERE active IS NULL');
-		} catch {}
-	}
+	// Migrations
+	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
+	const ensureCol = (name, def) => {
+		if (!pickupCols.some(c => c.name === name)) {
+			try { db.exec(`ALTER TABLE pickups ADD COLUMN ${name} ${def}`); } catch {}
+		}
+	};
+	ensureCol('manifest_no', 'TEXT');
+	ensureCol('transporter_name', 'TEXT');
+	ensureCol('vehicle_no', 'TEXT');
+	ensureCol('transporter_contact', 'TEXT');
 
+	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {
 		const insertCat = db.prepare('INSERT INTO categories (key, name, hazard_level) VALUES (?, ?, ?)');
@@ -131,10 +139,15 @@ export function initializeDatabase() {
 		insertCat.run('hazardous', 'Hazardous', 'high');
 	}
 
-	const deptCount = db.prepare('SELECT COUNT(*) as c FROM departments').get().c;
-	if (deptCount === 0) {
-		const insertDept = db.prepare('INSERT INTO departments (name) VALUES (?)');
-		['IT', 'Labs', 'Admin', 'Hostel', 'Library'].forEach(name => insertDept.run(name));
+	// Seed facility settings defaults (if empty)
+	const settingsCount = db.prepare('SELECT COUNT(*) as c FROM settings').get().c;
+	if (settingsCount === 0) {
+		const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+		set.run('facility_name', '');
+		set.run('facility_address', '');
+		set.run('facility_authorization_no', '');
+		set.run('facility_contact_name', '');
+		set.run('facility_contact_phone', '');
 	}
 }
 
