@@ -26,15 +26,29 @@ export default function Dashboard() {
 		return { from: `${iso(start)}T00:00:00Z`, to: `${iso(end)}T23:59:59Z` };
 	}
 
-	// Fetch monthly (once)
+	async function fetchMonthly() {
+		const [t, s, i] = await Promise.all([
+			fetch(`/api/analytics/trends?granularity=month`).then(r => r.json()).catch(() => ({})),
+			fetch(`/api/analytics/status-trends?granularity=month`).then(r => r.json()).catch(() => ({})),
+			fetch(`/api/analytics/impact-trends?granularity=month`).then(r => r.json()).catch(() => ({}))
+		]);
+		setMonthlyTrends(t.monthly || []);
+		setMonthlyStatusTrends(s.monthly || []);
+		setMonthlyImpactTrends(i.monthly || []);
+	}
+
+	// Initial load
 	useEffect(() => {
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
-		fetch(`/api/analytics/trends?granularity=month`).then(r => r.json()).then(d => setMonthlyTrends(d.monthly || []));
-		fetch(`/api/analytics/status-trends?granularity=month`).then(r => r.json()).then(d => setMonthlyStatusTrends(d.monthly || []));
-		fetch(`/api/analytics/impact-trends?granularity=month`).then(r => r.json()).then(d => setMonthlyImpactTrends(d.monthly || []));
+		fetchMonthly();
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
 	}, []);
+
+	// Refetch monthly whenever toggled back to Month view
+	useEffect(() => {
+		if (granularity === 'month') fetchMonthly();
+	}, [granularity]);
 
 	// Fetch daily whenever month changes
 	useEffect(() => {
@@ -103,6 +117,9 @@ export default function Dashboard() {
 						<label className="row" style={{ gap: 6 }}>
 							<input type="radio" name="gran" checked={granularity === 'month'} onChange={() => setGranularity('month')} /> Month
 						</label>
+						{granularity === 'month' && (
+							<button className="btn secondary" onClick={fetchMonthly}>Refresh</button>
+						)}
 					</div>
 				</div>
 				<ResponsiveContainer width="100%" height="100%">
