@@ -27,19 +27,34 @@ function mapVendor(row) {
 	};
 }
 
+function ensureActiveColumn() {
+	try {
+		const cols = db.prepare('PRAGMA table_info(vendors)').all();
+		if (!cols.some(c => c.name === 'active')) {
+			try { db.exec('ALTER TABLE vendors ADD COLUMN active INTEGER NOT NULL DEFAULT 1'); } catch {}
+		}
+	} catch {}
+}
+
 router.get('/types', (req, res) => {
 	res.json({ types: VENDOR_TYPES });
 });
 
 router.get('/', (req, res) => {
+	ensureActiveColumn();
 	const { type, include_inactive } = req.query;
 	const where = [];
 	const params = [];
 	if (include_inactive !== '1') where.push('active = 1');
 	if (type) { where.push('type = ?'); params.push(type); }
-	const sql = `SELECT * FROM vendors${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY name ASC`;
-	const rows = db.prepare(sql).all(...params);
-	res.json({ vendors: rows.map(mapVendor) });
+	try {
+		const sql = `SELECT * FROM vendors${where.length ? ' WHERE ' + where.join(' AND ') : ''} ORDER BY name ASC`;
+		const rows = db.prepare(sql).all(...params);
+		res.json({ vendors: rows.map(mapVendor) });
+	} catch (e) {
+		const rows = db.prepare('SELECT * FROM vendors ORDER BY name ASC').all();
+		res.json({ vendors: rows.map(mapVendor) });
+	}
 });
 
 router.post('/', (req, res) => {
@@ -48,6 +63,7 @@ router.post('/', (req, res) => {
 		authorization_no = null, auth_valid_from = null, auth_valid_to = null, gst_no = null, capacity_tpm = null, categories_handled = null } = req.body || {};
 	if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
 	if (!VENDOR_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
+	ensureActiveColumn();
 	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)')
 		.run(name, contact_name, phone, email, address, type, license_no, now, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled);
 	const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(info.lastInsertRowid);
@@ -72,11 +88,13 @@ router.put('/:id', (req, res) => {
 });
 
 router.delete('/:id', (req, res) => {
+	ensureActiveColumn();
 	db.prepare('UPDATE vendors SET active = 0 WHERE id = ?').run(req.params.id);
 	res.json({ ok: true });
 });
 
 router.post('/:id/restore', (req, res) => {
+	ensureActiveColumn();
 	db.prepare('UPDATE vendors SET active = 1 WHERE id = ?').run(req.params.id);
 	res.json({ ok: true });
 });
