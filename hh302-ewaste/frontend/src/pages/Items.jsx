@@ -143,9 +143,9 @@ export default function Items() {
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
 								<td className="row">
 									<button className="btn" onClick={() => setItemStatus(i.id, 'picked_up')} disabled={i.status !== 'scheduled'}>Pick up</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'scheduled'}>Recycle</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'scheduled'}>Refurbish</button>
-									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'scheduled'}>Dispose</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'picked_up'}>Recycle</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'picked_up'}>Refurbish</button>
+									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'picked_up'}>Dispose</button>
 									<button className="btn secondary" onClick={() => deleteItem(i.id)} style={{ marginLeft: 6 }}>Delete</button>
 								</td>
 							</tr>
