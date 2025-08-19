@@ -128,6 +128,23 @@ router.post('/', (req, res) => {
     res.status(201).json({ item: mapItem(row) });
 });
 
+// Scan by QR UID or ID (supports raw UID or URL containing UID/id)
+router.get('/scan/:code', (req, res) => {
+	let code = decodeURIComponent(String(req.params.code || '')).trim();
+	if (!code) return res.status(400).json({ error: 'invalid code' });
+	// If a URL was encoded, try to extract a UID/id
+	try {
+		if (/^https?:\/\//i.test(code)) {
+			const u = new URL(code);
+			code = u.searchParams.get('qr') || u.searchParams.get('uid') || u.searchParams.get('id') || u.pathname.split('/').filter(Boolean).pop() || code;
+		}
+	} catch (e) {}
+	let row = db.prepare('SELECT * FROM items WHERE qr_uid = ?').get(code);
+	if (!row && /^\d+$/.test(code)) row = db.prepare('SELECT * FROM items WHERE id = ?').get(Number(code));
+	if (!row) return res.status(404).json({ error: 'Not found' });
+	res.json({ item: mapItem(row) });
+});
+
 // Fetch single item
 router.get('/:id', (req, res) => {
     const row = db.prepare('SELECT * FROM items WHERE id = ?').get(req.params.id);
