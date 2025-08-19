@@ -37,6 +37,19 @@ export default function Dashboard() {
 		setMonthlyImpactTrends(i.monthly || []);
 	}
 
+	async function fetchDaily() {
+		const { from, to } = monthRange(selectedMonth);
+		const qs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+		const [t, s, i] = await Promise.all([
+			fetch(`/api/analytics/trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
+			fetch(`/api/analytics/status-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
+			fetch(`/api/analytics/impact-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({}))
+		]);
+		setDailyTrends(t.daily || []);
+		setDailyStatusTrends(s.daily || []);
+		setDailyImpactTrends(i.daily || []);
+	}
+
 	// Initial load
 	useEffect(() => {
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
@@ -48,15 +61,12 @@ export default function Dashboard() {
 	// Refetch monthly whenever toggled back to Month view
 	useEffect(() => {
 		if (granularity === 'month') fetchMonthly();
+		if (granularity === 'day') fetchDaily();
 	}, [granularity]);
 
 	// Fetch daily whenever month changes
 	useEffect(() => {
-		const { from, to } = monthRange(selectedMonth);
-		const qs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-		fetch(`/api/analytics/trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyTrends(d.daily || []));
-		fetch(`/api/analytics/status-trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyStatusTrends(d.daily || []));
-		fetch(`/api/analytics/impact-trends?granularity=day&${qs}`).then(r => r.json()).then(d => setDailyImpactTrends(d.daily || []));
+		fetchDaily();
 	}, [selectedMonth]);
 
 	const xKey = granularity === 'day' ? 'd' : 'ym';
@@ -109,7 +119,10 @@ export default function Dashboard() {
 					<h3 style={{ margin: 0 }}>{granularity === 'day' ? 'Daily Trends' : 'Monthly Trends'}</h3>
 					<div className="row" style={{ gap: 8, alignItems: 'center' }}>
 						{granularity === 'day' && (
-							<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+							<>
+								<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+								<button className="btn secondary" onClick={fetchDaily}>Refresh</button>
+							</>
 						)}
 						<label className="row" style={{ gap: 6 }}>
 							<input type="radio" name="gran" checked={granularity === 'day'} onChange={() => setGranularity('day')} /> Day
@@ -142,6 +155,7 @@ export default function Dashboard() {
 				{granularity === 'day' && (
 					<div className="row" style={{ marginBottom: 8 }}>
 						<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+						<button className="btn secondary" onClick={fetchDaily}>Refresh</button>
 					</div>
 				)}
 				<ResponsiveContainer width="100%" height="100%">
@@ -188,6 +202,7 @@ export default function Dashboard() {
 					{granularity === 'day' && (
 						<div className="row" style={{ marginBottom: 8 }}>
 							<input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} />
+							<button className="btn secondary" onClick={fetchDaily}>Refresh</button>
 						</div>
 					)}
 					<ResponsiveContainer width="100%" height="100%">
