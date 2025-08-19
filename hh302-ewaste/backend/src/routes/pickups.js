@@ -45,6 +45,7 @@ router.post('/', (req, res) => {
 	if (!vendor_id || !scheduled_date) return res.status(400).json({ error: 'vendor_id and scheduled_date are required' });
 	const vendor = db.prepare('SELECT * FROM vendors WHERE id = ?').get(vendor_id);
 	if (!vendor) return res.status(400).json({ error: 'Invalid vendor_id' });
+	if (!vendor.active) return res.status(400).json({ error: 'Vendor is inactive' });
 	if (!Array.isArray(item_ids) || item_ids.length === 0) return res.status(400).json({ error: 'item_ids must be a non-empty array' });
 
 	const now = nowIso();
@@ -69,12 +70,11 @@ router.post('/', (req, res) => {
 
 router.get('/suggest', (req, res) => {
 	const { vendor_type = 'recycler', limit = 20 } = req.query;
-	// Simple mapping of vendor type to category
 	let categories = ['recyclable'];
 	if (vendor_type === 'hazardous') categories = ['hazardous'];
 	if (vendor_type === 'refurbisher') categories = ['reusable'];
 	const items = db.prepare(`SELECT * FROM items WHERE status = 'reported' AND category_key IN (${categories.map(() => '?').join(',')}) ORDER BY created_at ASC LIMIT ?`).all(...categories, Number(limit));
-	const vendors = db.prepare('SELECT * FROM vendors WHERE type = ? ORDER BY name ASC').all(vendor_type);
+	const vendors = db.prepare('SELECT * FROM vendors WHERE type = ? AND active = 1 ORDER BY name ASC').all(vendor_type);
 	res.json({ suggested_items: items, vendors });
 });
 
