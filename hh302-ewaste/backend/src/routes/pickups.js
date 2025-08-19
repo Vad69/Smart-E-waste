@@ -58,6 +58,7 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
 	const { vendor_id, scheduled_date, item_ids = [], manifest_no = null, transporter_name = null, vehicle_no = null, transporter_contact = null } = req.body || {};
 	if (!vendor_id || !scheduled_date) return res.status(400).json({ error: 'vendor_id and scheduled_date are required' });
+	if (!transporter_name || String(transporter_name).trim() === '') return res.status(400).json({ error: 'transporter_name is required' });
 	const vendor = db.prepare('SELECT * FROM vendors WHERE id = ?').get(vendor_id);
 	if (!vendor) return res.status(400).json({ error: 'Invalid vendor_id' });
 	if (!vendor.active) return res.status(400).json({ error: 'Vendor is inactive' });

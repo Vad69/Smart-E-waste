@@ -78,7 +78,7 @@ export default function Pickups() {
 					</select>
 					<input className="input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} required />
 					<input className="input" placeholder="Manifest No" value={manifest.manifest_no} onChange={e => setManifest(m => ({ ...m, manifest_no: e.target.value }))} />
-					<input className="input" placeholder="Transporter Name" value={manifest.transporter_name} onChange={e => setManifest(m => ({ ...m, transporter_name: e.target.value }))} />
+					<input className="input" placeholder="Transporter Name" value={manifest.transporter_name} onChange={e => setManifest(m => ({ ...m, transporter_name: e.target.value }))} required />
 					<input className="input" placeholder="Vehicle No" value={manifest.vehicle_no} onChange={e => setManifest(m => ({ ...m, vehicle_no: e.target.value }))} />
 					<input className="input" placeholder="Transporter Contact" value={manifest.transporter_contact} onChange={e => setManifest(m => ({ ...m, transporter_contact: e.target.value }))} />
 					<button className="btn" type="submit" disabled={!selectedVendor || selectedItems.length === 0}>Schedule</button>
