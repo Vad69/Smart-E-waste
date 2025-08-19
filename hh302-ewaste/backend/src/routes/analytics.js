@@ -23,35 +23,31 @@ router.get('/summary', (req, res) => {
 
 router.get('/trends', (req, res) => {
 	const { granularity = 'month', from, to } = req.query;
-	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
-	const toDate = to ? dayjs(to) : dayjs();
-	let rows = [];
 	if (granularity === 'day') {
-		rows = db.prepare(`
+		const monthFilter = dayjs(from || to || new Date()).format('YYYY-MM');
+		const rows = db.prepare(`
 			SELECT substr(created_at, 1, 10) as d, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
 			FROM items
-			WHERE created_at BETWEEN ? AND ?
+			WHERE substr(created_at,1,7) = ?
 			GROUP BY d
 			ORDER BY d ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all(monthFilter);
 		return res.json({ daily: rows });
 	} else {
-		rows = db.prepare(`
+		const rows = db.prepare(`
 			SELECT substr(created_at, 1, 7) as ym, COUNT(*) as c, IFNULL(SUM(weight_kg),0) as w
 			FROM items
-			WHERE created_at BETWEEN ? AND ?
 			GROUP BY ym
 			ORDER BY ym ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all();
 		return res.json({ monthly: rows });
 	}
 });
 
 router.get('/status-trends', (req, res) => {
 	const { granularity = 'month', from, to } = req.query;
-	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
-	const toDate = to ? dayjs(to) : dayjs();
 	if (granularity === 'day') {
+		const monthFilter = dayjs(from || to || new Date()).format('YYYY-MM');
 		const rows = db.prepare(`
 			SELECT substr(updated_at,1,10) as d,
 				IFNULL(SUM(CASE WHEN status='picked_up' THEN weight_kg ELSE 0 END),0) as picked_up_w,
@@ -59,10 +55,10 @@ router.get('/status-trends', (req, res) => {
 				IFNULL(SUM(CASE WHEN status='refurbished' THEN weight_kg ELSE 0 END),0) as refurbished_w,
 				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg ELSE 0 END),0) as disposed_w
 			FROM items
-			WHERE updated_at BETWEEN ? AND ?
+			WHERE substr(updated_at,1,7) = ?
 			GROUP BY d
 			ORDER BY d ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all(monthFilter);
 		return res.json({ daily: rows });
 	} else {
 		const rows = db.prepare(`
@@ -72,10 +68,9 @@ router.get('/status-trends', (req, res) => {
 				IFNULL(SUM(CASE WHEN status='refurbished' THEN weight_kg ELSE 0 END),0) as refurbished_w,
 				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg ELSE 0 END),0) as disposed_w
 			FROM items
-			WHERE updated_at BETWEEN ? AND ?
 			GROUP BY ym
 			ORDER BY ym ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all();
 		return res.json({ monthly: rows });
 	}
 });
@@ -113,18 +108,17 @@ router.get('/impact', (req, res) => {
 
 router.get('/impact-trends', (req, res) => {
 	const { granularity = 'month', from, to } = req.query;
-	const fromDate = from ? dayjs(from) : dayjs().subtract(180, 'day');
-	const toDate = to ? dayjs(to) : dayjs();
 	if (granularity === 'day') {
+		const monthFilter = dayjs(from || to || new Date()).format('YYYY-MM');
 		const rows = db.prepare(`
 			SELECT substr(updated_at,1,10) as d,
 				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg*1.5 WHEN status='refurbished' THEN weight_kg*3.0 ELSE 0 END),0) as co2e,
 				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg*0.5 ELSE 0 END),0) as haz
 			FROM items
-			WHERE updated_at BETWEEN ? AND ?
+			WHERE substr(updated_at,1,7) = ?
 			GROUP BY d
 			ORDER BY d ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all(monthFilter);
 		return res.json({ daily: rows });
 	} else {
 		const rows = db.prepare(`
@@ -132,10 +126,9 @@ router.get('/impact-trends', (req, res) => {
 				IFNULL(SUM(CASE WHEN status='recycled' THEN weight_kg*1.5 WHEN status='refurbished' THEN weight_kg*3.0 ELSE 0 END),0) as co2e,
 				IFNULL(SUM(CASE WHEN status='disposed' THEN weight_kg*0.5 ELSE 0 END),0) as haz
 			FROM items
-			WHERE updated_at BETWEEN ? AND ?
 			GROUP BY ym
 			ORDER BY ym ASC
-		`).all(fromDate.toISOString(), toDate.toISOString());
+		`).all();
 		return res.json({ monthly: rows });
 	}
 });
