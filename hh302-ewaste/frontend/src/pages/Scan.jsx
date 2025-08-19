@@ -1,6 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
+function computeAgeDays(item) {
+	if (!item) return null;
+	const base = item.purchase_date || item.created_at;
+	if (!base) return null;
+	const start = new Date(base).getTime();
+	const now = Date.now();
+	return Math.max(0, Math.floor((now - start) / (1000*60*60*24)));
+}
+
 export default function Scan() {
 	const [result, setResult] = useState(null);
 	const [error, setError] = useState('');
@@ -25,6 +34,8 @@ export default function Scan() {
 		// ignore frequent scan errors
 	}
 
+	const ageDays = computeAgeDays(result);
+
 	return (
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
@@ -43,6 +54,8 @@ export default function Scan() {
 					<div><b>Status:</b> {result.status}</div>
 					<div><b>Category:</b> {result.category_key}</div>
 					<div><b>Dept:</b> {result.department_id || '—'}</div>
+					<div><b>Weight:</b> {result.weight_kg || 0} kg</div>
+					<div><b>Age:</b> {ageDays != null ? `${ageDays} day(s)` : '—'}</div>
 				</div>
 			)}
 		</div>
