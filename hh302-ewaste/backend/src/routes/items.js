@@ -1,5 +1,6 @@
 import express from 'express';
 import dayjs from 'dayjs';
+import PDFDocument from 'pdfkit';
 import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
@@ -315,6 +316,75 @@ router.get('/:id/label.png', async (req, res, next) => {
 		// Compose a simple PNG by embedding QR alone; metadata text is handled in SVG label.
 		res.setHeader('Content-Type', 'image/png');
 		res.send(png);
+	} catch (e) {
+		next(e);
+	}
+});
+
+router.get('/:id/label.pdf', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const qrSize = Math.max(200, Math.min(700, Number(req.query.size) || 360)); // points
+		const pageWidth = qrSize + 360;
+		const pageHeight = Math.max(qrSize + 200, 600);
+		const margin = 20;
+		const textX = margin + qrSize + 20;
+
+		const png = await generateQrPngBuffer(row.qr_uid, Math.round(qrSize));
+
+		// Timeline
+		const evs = db.prepare('SELECT event_type, created_at FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
+		const findAt = (k) => evs.find(e => e.event_type === k)?.created_at || null;
+		const reportedAt = findAt('reported') || row.created_at;
+		const scheduledAt = findAt('scheduled_for_pickup') || null;
+		const pickedAt = findAt('status_picked_up') || null;
+		const recycledAt = findAt('status_recycled') || null;
+		const refurbAt = findAt('status_refurbished') || null;
+		const disposedAt = findAt('status_disposed') || null;
+		const processedLabel = recycledAt ? 'Recycled' : refurbAt ? 'Refurbished' : disposedAt ? 'Disposed' : 'Processed';
+		const processedAt = recycledAt || refurbAt || disposedAt || null;
+		const ageBase = row.purchase_date || row.created_at;
+		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
+		const weightStr = (row.weight_kg || 0) + ' kg';
+
+		res.setHeader('Content-Type', 'application/pdf');
+		res.setHeader('Content-Disposition', `inline; filename="label_item_${row.id}.pdf"`);
+
+		const doc = new PDFDocument({ size: [pageWidth, pageHeight], margin });
+		doc.pipe(res);
+
+		// QR
+		doc.image(png, margin, margin, { width: qrSize, height: qrSize });
+
+		// Heading and meta
+		doc.fontSize(16).text(row.name || 'Item', textX, margin, { width: pageWidth - textX - margin, continued: false });
+		doc.fontSize(11);
+		doc.text(`Dept: ${row.department_name || 'N/A'}`, textX);
+		doc.text(`Status: ${row.status}`, textX);
+		doc.text(`Category: ${row.category_key || 'N/A'}`, textX);
+		doc.text(`Condition: ${row.condition || 'N/A'}`, textX);
+		doc.text(`Weight: ${weightStr}`, textX);
+		doc.text(`Age: ${ageDays != null ? ageDays + ' days' : 'N/A'}`, textX);
+		doc.text(`Desc: ${(row.description || 'N/A').slice(0, 120)}`, textX, undefined, { width: pageWidth - textX - margin });
+
+		// Timeline
+		doc.moveDown(0.5);
+		doc.fontSize(12).text('Timeline', textX, undefined, { underline: true });
+		doc.fontSize(10);
+		doc.text(`Reported: ${reportedAt || '—'}`, textX);
+		doc.text(`Scheduled: ${scheduledAt || '—'}`, textX);
+		doc.text(`Picked up: ${pickedAt || '—'}`, textX);
+		doc.text(`${processedLabel}: ${processedAt || '—'}`, textX);
+
+		// Footer
+		doc.moveDown(0.5);
+		doc.fontSize(9).text(`QR UID: ${row.qr_uid}`, textX);
+		doc.fontSize(9).text(`Created: ${row.created_at}`, textX);
+		doc.fontSize(9).text(`Updated: ${row.updated_at}`, textX);
+		doc.fontSize(8).fillColor('#6b7280').text(`Printed: ${dayjs().format('YYYY-MM-DD HH:mm:ss')}`, margin, pageHeight - margin - 12);
+
+		doc.end();
 	} catch (e) {
 		next(e);
 	}
