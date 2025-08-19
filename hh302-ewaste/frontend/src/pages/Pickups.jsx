@@ -69,7 +69,7 @@ export default function Pickups() {
 						<option value="">Select vendor</option>
 						{suggested.vendors.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
 					</select>
-					<input className="input" type="date" value={date} onChange={e => setDate(e.target.value)} required />
+					<input className="input" type="datetime-local" value={date} onChange={e => setDate(e.target.value)} required />
 					<button className="btn" type="submit" disabled={!selectedVendor || selectedItems.length === 0}>Schedule</button>
 				</form>
 			</div>
@@ -121,7 +121,7 @@ export default function Pickups() {
 							<tr key={p.id}>
 								<td className="mono">{p.id}</td>
 								<td>{p.vendor_name || p.vendor_id}</td>
-								<td>{p.scheduled_date?.slice?.(0,10)}</td>
+								<td>{p.scheduled_date?.replace?.('T',' ').slice?.(0,16)}</td>
 								<td>{p.status}</td>
 								<td>{p.item_count}</td>
 								<td><BreakdownBar counts={p.counts} /></td>
