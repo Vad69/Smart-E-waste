@@ -80,6 +80,10 @@ export function initializeDatabase() {
 			scheduled_date TEXT NOT NULL,
 			status TEXT NOT NULL DEFAULT 'scheduled',
 			created_at TEXT NOT NULL,
+			manifest_no TEXT,
+			transporter_name TEXT,
+			vehicle_no TEXT,
+			transporter_contact TEXT,
 			FOREIGN KEY(vendor_id) REFERENCES vendors(id)
 		);
 
@@ -118,17 +122,15 @@ export function initializeDatabase() {
 		);
 	`);
 
-	// Migrations
-	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
-	const ensureCol = (name, def) => {
-		if (!pickupCols.some(c => c.name === name)) {
-			try { db.exec(`ALTER TABLE pickups ADD COLUMN ${name} ${def}`); } catch {}
-		}
-	};
-	ensureCol('manifest_no', 'TEXT');
-	ensureCol('transporter_name', 'TEXT');
-	ensureCol('vehicle_no', 'TEXT');
-	ensureCol('transporter_contact', 'TEXT');
+	// Vendor migrations
+	const vendorCols = db.prepare('PRAGMA table_info(vendors)').all();
+	const ensureVendorCol = (name, def) => { if (!vendorCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE vendors ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureVendorCol('authorization_no', 'TEXT');
+	ensureVendorCol('auth_valid_from', 'TEXT');
+	ensureVendorCol('auth_valid_to', 'TEXT');
+	ensureVendorCol('gst_no', 'TEXT');
+	ensureVendorCol('capacity_tpm', 'REAL');
+	ensureVendorCol('categories_handled', 'TEXT');
 
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
