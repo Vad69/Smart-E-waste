@@ -112,6 +112,17 @@ export function initializeDatabase() {
 		);
 	`);
 
+	// Ensure vendors.active exists
+	const vendorCols = db.prepare('PRAGMA table_info(vendors)').all();
+	const hasActive = vendorCols.some(c => c.name === 'active');
+	if (!hasActive) {
+		try {
+			db.exec('ALTER TABLE vendors ADD COLUMN active INTEGER NOT NULL DEFAULT 1');
+			// backfill not needed due to DEFAULT, but ensure all set to 1
+			db.exec('UPDATE vendors SET active = 1 WHERE active IS NULL');
+		} catch {}
+	}
+
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {
 		const insertCat = db.prepare('INSERT INTO categories (key, name, hazard_level) VALUES (?, ?, ?)');

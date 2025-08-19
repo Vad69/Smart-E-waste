@@ -16,6 +16,7 @@ function mapVendor(row) {
 		address: row.address,
 		type: row.type,
 		license_no: row.license_no,
+		active: row.active ?? 1,
 		created_at: row.created_at
 	};
 }
@@ -25,12 +26,13 @@ router.get('/types', (req, res) => {
 });
 
 router.get('/', (req, res) => {
-	const { type } = req.query;
+	const { type, include_inactive } = req.query;
 	let rows = [];
+	const base = include_inactive === '1' ? 'SELECT * FROM vendors' : 'SELECT * FROM vendors WHERE active = 1';
 	if (type) {
-		rows = db.prepare('SELECT * FROM vendors WHERE type = ? ORDER BY name ASC').all(type);
+		rows = db.prepare(`${base} AND type = ? ORDER BY name ASC`).all(type);
 	} else {
-		rows = db.prepare('SELECT * FROM vendors ORDER BY name ASC').all();
+		rows = db.prepare(`${base} ORDER BY name ASC`).all();
 	}
 	res.json({ vendors: rows.map(mapVendor) });
 });
@@ -40,7 +42,7 @@ router.post('/', (req, res) => {
 	const { name, contact_name = null, phone = null, email = null, address = null, type, license_no = null } = req.body || {};
 	if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
 	if (!VENDOR_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
-	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)')
 		.run(name, contact_name, phone, email, address, type, license_no, now);
 	const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(info.lastInsertRowid);
 	res.status(201).json({ vendor: mapVendor(row) });
@@ -61,6 +63,16 @@ router.put('/:id', (req, res) => {
 		.run(updates.name, updates.contact_name, updates.phone, updates.email, updates.address, updates.type, updates.license_no, req.params.id);
 	const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(req.params.id);
 	res.json({ vendor: mapVendor(row) });
+});
+
+router.delete('/:id', (req, res) => {
+	db.prepare('UPDATE vendors SET active = 0 WHERE id = ?').run(req.params.id);
+	res.json({ ok: true });
+});
+
+router.post('/:id/restore', (req, res) => {
+	db.prepare('UPDATE vendors SET active = 1 WHERE id = ?').run(req.params.id);
+	res.json({ ok: true });
 });
 
 export default router;
