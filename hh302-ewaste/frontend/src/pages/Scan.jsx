@@ -13,6 +13,8 @@ function computeAgeDays(item) {
 export default function Scan() {
 	const [result, setResult] = useState(null);
 	const [events, setEvents] = useState([]);
+	const [pickup, setPickup] = useState(null);
+	const [settings, setSettings] = useState(null);
 	const [error, setError] = useState('');
 	const ref = useRef(null);
 	const scannerRef = useRef(null);
@@ -25,16 +27,22 @@ export default function Scan() {
 
 	function onScanSuccess(text) {
 		setError('');
+		setResult(null);
+		setEvents([]);
+		setPickup(null);
 		fetch(`/api/items/scan/${encodeURIComponent(text)}`).then(async r => {
 			if (!r.ok) throw new Error('Not found');
 			const data = await r.json();
 			setResult(data.item);
-			return fetch(`/api/items/${data.item.id}/events`);
-		}).then(async r => {
-			if (r) {
-				const d = await r.json();
-				setEvents(d.events || []);
-			}
+			return Promise.all([
+				fetch(`/api/items/${data.item.id}/events`).then(rr => rr.ok ? rr.json() : { events: [] }),
+				fetch(`/api/items/${data.item.id}/pickup-info`).then(rr => rr.ok ? rr.json() : { pickup: null }),
+				fetch('/api/settings').then(rr => rr.ok ? rr.json() : { settings: null })
+			]);
+		}).then(([ev, pi, st]) => {
+			setEvents(ev?.events || []);
+			setPickup(pi?.pickup || null);
+			setSettings(st?.settings || null);
 		}).catch(() => setError('Item not found'));
 	}
 	function onScanError(err) {}
@@ -80,6 +88,29 @@ export default function Scan() {
 						<div className="mono" style={{ fontSize: 12 }}>Picked up: {pickedAt || '—'}</div>
 						<div className="mono" style={{ fontSize: 12 }}>{processedLabel || 'Processed'}: {processedAt || '—'}</div>
 					</div>
+				</div>
+			)}
+
+			{settings && (
+				<div className="card">
+					<h3>Facility</h3>
+					<div><b>Name:</b> {settings.facility_name || '—'}</div>
+					<div><b>Authorization:</b> {settings.facility_authorization_no || '—'}</div>
+					<div><b>Contact:</b> {settings.facility_contact_name || '—'} {settings.facility_contact_phone ? `| ${settings.facility_contact_phone}` : ''}</div>
+					<div><b>Address:</b> {settings.facility_address || '—'}</div>
+				</div>
+			)}
+
+			{result && (
+				<div className="card">
+					<h3>Vendor & Transport</h3>
+					<div><b>Vendor:</b> {pickup?.vendor_name || '—'} {pickup?.vendor_type ? `(${pickup.vendor_type})` : ''}</div>
+					<div><b>License:</b> {pickup?.vendor_license || '—'}</div>
+					<div><b>Contact:</b> {pickup?.vendor_contact_name || '—'} {pickup?.vendor_phone ? `| ${pickup.vendor_phone}` : ''} {pickup?.vendor_email ? `| ${pickup.vendor_email}` : ''}</div>
+					<div><b>Address:</b> {pickup?.vendor_address || '—'}</div>
+					<div><b>Manifest:</b> {pickup?.manifest_no || '—'}</div>
+					<div><b>Transporter:</b> {pickup?.transporter_name || '—'} {pickup?.vehicle_no ? `| ${pickup.vehicle_no}` : ''} {pickup?.transporter_contact ? `| ${pickup.transporter_contact}` : ''}</div>
+					<div><b>Scheduled:</b> {pickup?.scheduled_date || '—'}</div>
 				</div>
 			)}
 		</div>
