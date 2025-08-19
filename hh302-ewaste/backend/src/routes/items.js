@@ -279,6 +279,28 @@ router.get('/:id/label.png', async (req, res, next) => {
 	}
 });
 
+router.delete('/:id', (req, res) => {
+	const id = Number(req.params.id);
+	const existing = db.prepare('SELECT * FROM items WHERE id = ?').get(id);
+	if (!existing) return res.status(404).json({ error: 'Item not found' });
+	const pickupIds = db.prepare('SELECT DISTINCT pickup_id FROM pickup_items WHERE item_id = ?').all(id).map(r => r.pickup_id);
+	// Delete item (cascades to item_events and pickup_items)
+	db.prepare('DELETE FROM items WHERE id = ?').run(id);
+	// Recompute pickups that referenced this item
+	for (const pid of pickupIds) {
+		recomputePickupStatus(pid);
+	}
+	return res.json({ ok: true });
+});
+
+function recomputePickupStatus(pickupId) {
+	const rows = db.prepare('SELECT i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ?').all(pickupId);
+	if (rows.length === 0) return; // keep current status if no items remain
+	const finalStatuses = new Set(['picked_up','recycled','refurbished','disposed']);
+	const allFinal = rows.every(r => finalStatuses.has(r.status));
+	db.prepare('UPDATE pickups SET status = ? WHERE id = ?').run(allFinal ? 'completed' : 'scheduled', pickupId);
+}
+
 function escapeXml(s) {
 	return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

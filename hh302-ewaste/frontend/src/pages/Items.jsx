@@ -58,6 +58,16 @@ export default function Items() {
 		load();
 	}
 
+	async function deleteItem(id) {
+		if (!window.confirm(`Delete item #${id}? This cannot be undone.`)) return;
+		const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+		if (!res.ok) {
+			const err = await res.json().catch(() => ({}));
+			return alert(err.error || 'Failed to delete');
+		}
+		load();
+	}
+
 	const openItems = useMemo(() => items.filter(i => i.status !== 'recycled' && i.status !== 'refurbished' && i.status !== 'disposed'), [items]);
 	const completedItems = useMemo(() => items.filter(i => i.status === 'recycled' || i.status === 'refurbished' || i.status === 'disposed'), [items]);
 
@@ -132,6 +142,7 @@ export default function Items() {
 									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'recycled')} disabled={i.status !== 'scheduled'}>Recycle</button>
 									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'refurbished')} disabled={i.status !== 'scheduled'}>Refurbish</button>
 									<button className="btn secondary" onClick={() => setItemStatus(i.id, 'disposed')} disabled={i.status !== 'scheduled'}>Dispose</button>
+									<button className="btn secondary" onClick={() => deleteItem(i.id)} style={{ marginLeft: 6 }}>Delete</button>
 								</td>
 							</tr>
 						))}
@@ -168,6 +179,7 @@ export default function Items() {
 								<td>{i.description?.slice?.(0, 50) || '—'}</td>
 								<td>{i.weight_kg || 0}</td>
 								<td><a href={`/api/items/${i.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
+								<td><button className="btn secondary" onClick={() => deleteItem(i.id)}>Delete</button></td>
 							</tr>
 						))}
 					</tbody>
