@@ -296,6 +296,7 @@ export default function Campaigns() {
 					<thead>
 						<tr>
 							<th>User</th>
+							<th>User ID</th>
 							<th>Dept</th>
 							<th>Points</th>
 						</tr>
@@ -304,6 +305,7 @@ export default function Campaigns() {
 						{leaderboard.map(e => (
 							<tr key={e.user_id}>
 								<td>{e.user_name || e.user_id}</td>
+								<td className="mono">{e.user_id}</td>
 								<td className="mono">{e.department_name || '—'}</td>
 								<td className="mono">{e.points}</td>
 							</tr>

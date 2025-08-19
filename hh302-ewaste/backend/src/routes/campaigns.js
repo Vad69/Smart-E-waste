@@ -36,7 +36,7 @@ router.post('/', (req, res) => {
 router.get('/:id/scores', (req, res) => {
 	const top = Number(req.query.top || 10);
 	const rows = db.prepare(`
-		SELECT user_id, user_name, SUM(points) as points
+		SELECT user_id, user_name, MAX(department_name) as department_name, SUM(points) as points
 		FROM user_scores
 		WHERE campaign_id = ?
 		GROUP BY user_id, user_name
@@ -47,17 +47,17 @@ router.get('/:id/scores', (req, res) => {
 });
 
 router.post('/:id/award', (req, res) => {
-	const { user_id, user_name, points } = req.body || {};
+	const { user_id, user_name, department_name = null, points } = req.body || {};
 	if (!user_id || !points) return res.status(400).json({ error: 'user_id and points are required' });
 	const now = nowIso();
-	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at) VALUES (?, ?, ?, ?, ?)')
-		.run(user_id, user_name || null, points, req.params.id, now);
+	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+		.run(user_id, user_name || null, points, req.params.id, now, department_name);
 	res.status(201).json({ ok: true });
 });
 
 router.get('/scoreboard/all', (req, res) => {
 	const rows = db.prepare(`
-		SELECT user_id, user_name, SUM(points) as points
+		SELECT user_id, user_name, MAX(department_name) as department_name, SUM(points) as points
 		FROM user_scores
 		GROUP BY user_id, user_name
 		ORDER BY points DESC
