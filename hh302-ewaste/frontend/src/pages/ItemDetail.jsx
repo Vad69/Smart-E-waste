@@ -15,10 +15,14 @@ export default function ItemDetail() {
 	const { id } = useParams();
 	const [item, setItem] = useState(null);
 	const [events, setEvents] = useState([]);
+	const [pickup, setPickup] = useState(null);
+	const [settings, setSettings] = useState(null);
 
 	function load() {
 		fetch(`/api/items/${id}`).then(r => r.json()).then(d => setItem(d.item));
 		fetch(`/api/items/${id}/events`).then(r => r.json()).then(d => setEvents(d.events));
+		fetch(`/api/items/${id}/pickup-info`).then(r => r.json()).then(d => setPickup(d.pickup || null)).catch(() => setPickup(null));
+		fetch('/api/settings').then(r => r.json()).then(d => setSettings(d.settings || null)).catch(() => setSettings(null));
 	}
 	useEffect(() => { load(); }, [id]);
 
@@ -62,6 +66,27 @@ export default function ItemDetail() {
 						))}
 					</tbody>
 				</table>
+			</div>
+
+			{settings && (
+				<div className="card">
+					<h3>Facility</h3>
+					<div><b>Name:</b> {settings.facility_name || '—'}</div>
+					<div><b>Authorization:</b> {settings.facility_authorization_no || '—'}</div>
+					<div><b>Contact:</b> {settings.facility_contact_name || '—'} {settings.facility_contact_phone ? `| ${settings.facility_contact_phone}` : ''}</div>
+					<div><b>Address:</b> {settings.facility_address || '—'}</div>
+				</div>
+			)}
+
+			<div className="card">
+				<h3>Vendor & Transport</h3>
+				<div><b>Vendor:</b> {pickup?.vendor_name || '—'} {pickup?.vendor_type ? `(${pickup.vendor_type})` : ''}</div>
+				<div><b>License:</b> {pickup?.vendor_license || '—'}</div>
+				<div><b>Contact:</b> {pickup?.vendor_contact_name || '—'} {pickup?.vendor_phone ? `| ${pickup.vendor_phone}` : ''} {pickup?.vendor_email ? `| ${pickup.vendor_email}` : ''}</div>
+				<div><b>Address:</b> {pickup?.vendor_address || '—'}</div>
+				<div><b>Manifest:</b> {pickup?.manifest_no || '—'}</div>
+				<div><b>Transporter:</b> {pickup?.transporter_name || '—'} {pickup?.vehicle_no ? `| ${pickup.vehicle_no}` : ''} {pickup?.transporter_contact ? `| ${pickup.transporter_contact}` : ''}</div>
+				<div><b>Scheduled:</b> {pickup?.scheduled_date || '—'}</div>
 			</div>
 		</div>
 	);
