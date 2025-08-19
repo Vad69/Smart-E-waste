@@ -59,27 +59,42 @@ router.post('/', (req, res) => {
 		weight_kg = 0,
 		serial_number = null,
 		asset_tag = null,
-		reported_by = null
+		reported_by = null,
+		category_key: categoryOverride = null
 	} = req.body || {};
 
 	if (!name) return res.status(400).json({ error: 'name is required' });
 
 	const qr_uid = uuidv4();
-	const classification = classifyItem({ name, description, condition, weight_kg });
+	let category_key = null;
+	let meta = null;
+	if (['recyclable','reusable','hazardous'].includes(categoryOverride)) {
+		category_key = categoryOverride;
+		meta = {
+			hazardous: categoryOverride === 'hazardous' ? 1 : 0,
+			recyclable: categoryOverride === 'recyclable' ? 1 : 0,
+			reusable: categoryOverride === 'reusable' ? 1 : 0,
+			recommended_vendor_type: categoryOverride === 'hazardous' ? 'hazardous' : (categoryOverride === 'reusable' ? 'refurbisher' : 'recycler')
+		};
+	} else {
+		meta = classifyItem({ name, description, condition, weight_kg });
+		category_key = meta.category_key;
+	}
+
 	const insert = db.prepare(`INSERT INTO items (
 		qr_uid, name, description, category_key, status, department_id, condition, purchase_date,
 		weight_kg, hazardous, recyclable, reusable, serial_number, asset_tag, reported_by, created_at, updated_at
 	) VALUES (?, ?, ?, ?, 'reported', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
 	const info = insert.run(
-		qr_uid, name, description, classification.category_key, department_id, condition, purchase_date, weight_kg,
-		classification.hazardous, classification.recyclable, classification.reusable, serial_number, asset_tag, reported_by, now, now
+		qr_uid, name, description, category_key, department_id, condition, purchase_date, weight_kg,
+		meta.hazardous, meta.recyclable, meta.reusable, serial_number, asset_tag, reported_by, now, now
 	);
 
 	db.prepare('INSERT INTO item_events (item_id, event_type, notes, created_at) VALUES (?, ?, ?, ?)')
 		.run(info.lastInsertRowid, 'reported', 'Item reported and classified', now);
 
 	const row = db.prepare('SELECT * FROM items WHERE id = ?').get(info.lastInsertRowid);
-	res.status(201).json({ item: mapItem(row), recommended_vendor_type: classification.recommended_vendor_type });
+	res.status(201).json({ item: mapItem(row), recommended_vendor_type: meta.recommended_vendor_type });
 });
 
 router.get('/scan/:qr_uid', (req, res) => {
@@ -100,7 +115,12 @@ router.put('/:id', (req, res) => {
 	const now = nowIso();
 	const updates = { ...existing, ...req.body };
 	let classification = null;
-	if (req.body.name || req.body.description || req.body.condition || req.body.weight_kg !== undefined) {
+	if (['recyclable','reusable','hazardous'].includes(req.body?.category_key)) {
+		updates.category_key = req.body.category_key;
+		updates.hazardous = req.body.category_key === 'hazardous' ? 1 : 0;
+		updates.recyclable = req.body.category_key === 'recyclable' ? 1 : 0;
+		updates.reusable = req.body.category_key === 'reusable' ? 1 : 0;
+	} else if (req.body.name || req.body.description || req.body.condition || req.body.weight_kg !== undefined) {
 		classification = classifyItem({ name: updates.name, description: updates.description, condition: updates.condition, weight_kg: updates.weight_kg });
 		updates.category_key = classification.category_key;
 		updates.hazardous = classification.hazardous;
@@ -168,24 +188,28 @@ router.get('/:id/label.svg', async (req, res, next) => {
 	try {
 		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
 		if (!row) return res.status(404).send('Not found');
-		const qrSvg = await generateQrSvg(row.qr_uid, 200);
+		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
+		const labelWidth = size + 260;
+		const labelHeight = Math.max(size + 80, 320);
+		const textX = size + 40;
+		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
 		const now = new Date().toISOString();
 		const label = `<?xml version="1.0" encoding="UTF-8"?>
-			<svg xmlns="http://www.w3.org/2000/svg" width="420" height="260">
+			<svg xmlns="http://www.w3.org/2000/svg" width="${labelWidth}" height="${labelHeight}">
 				<rect width="100%" height="100%" fill="#ffffff"/>
-				<svg x="16" y="16" width="200" height="200" viewBox="0 0 200 200">${qrInner}</svg>
+				<svg x="16" y="16" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${qrInner}</svg>
 				<g font-family="Arial, Helvetica, sans-serif" fill="#111827">
-					<text x="230" y="36" font-size="16" font-weight="700">${escapeXml(row.name || 'Item')}</text>
-					<text x="230" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
-					<text x="230" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
-					<text x="230" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
-					<text x="230" y="114" font-size="12">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x="230" y="132" font-size="12">Desc: ${escapeXml((row.description || 'N/A').slice(0,40))}</text>
-					<text x="230" y="150" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x="230" y="168" font-size="12">Created: ${escapeXml(row.created_at)}</text>
-					<text x="230" y="186" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
-					<text x="16" y="236" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
+					<text x="${textX}" y="36" font-size="16" font-weight="700">${escapeXml(row.name || 'Item')}</text>
+					<text x="${textX}" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x="${textX}" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
+					<text x="${textX}" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x="${textX}" y="114" font-size="12">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x="${textX}" y="132" font-size="12">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x="${textX}" y="150" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x="${textX}" y="168" font-size="12">Created: ${escapeXml(row.created_at)}</text>
+					<text x="${textX}" y="186" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x="16" y="${labelHeight - 16}" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
