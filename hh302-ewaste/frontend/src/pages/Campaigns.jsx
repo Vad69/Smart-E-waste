@@ -109,6 +109,30 @@ export default function Campaigns() {
 					<input className="input" type="number" placeholder="Base points" value={form.points} onChange={e => setForm(v => ({ ...v, points: e.target.value }))} />
 					<button className="btn" type="submit">Create</button>
 				</form>
+				<div style={{ marginTop: 8 }}>
+					<table className="table">
+						<thead>
+							<tr>
+								<th>Title</th>
+								<th>Type</th>
+								<th>Start Date</th>
+								<th>End Date</th>
+								<th>Description</th>
+							</tr>
+						</thead>
+						<tbody>
+							{campaigns.map(c => (
+								<tr key={c.id}>
+									<td>{c.title}</td>
+									<td className="mono">{c.type || '—'}</td>
+									<td className="mono">{c.start_date || '—'}</td>
+									<td className="mono">{c.end_date || '—'}</td>
+									<td>{c.description || '—'}</td>
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>
 			</Section>
 
 			<Section title="Select Campaign">
