@@ -97,3 +97,83 @@ router.get('/:id/pickup-info', (req, res) => {
 		scheduled_date: p.scheduled_date
 	} });
 });
+
+function escapeXml(s) {
+	return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+router.get('/:id/label.svg', async (req, res, next) => {
+	try {
+		const row = db.prepare('SELECT i.*, d.name as department_name FROM items i LEFT JOIN departments d ON i.department_id = d.id WHERE i.id = ?').get(req.params.id);
+		if (!row) return res.status(404).send('Not found');
+		const size = Math.max(300, Math.min(800, Number(req.query.size) || 600));
+		const labelWidth = size + 460;
+		const labelHeight = Math.max(size + 280, 600);
+		const textX = size + 40;
+		const qrSvg = await generateQrSvg(row.qr_uid, size);
+		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
+
+		// Facility settings
+		const settingsRows = db.prepare('SELECT key, value FROM settings').all();
+		const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+
+		// Item age and timeline
+		const ageBase = row.purchase_date || row.created_at;
+		const ageDays = ageBase ? dayjs().diff(dayjs(ageBase), 'day') : null;
+		const weightStr = (row.weight_kg || 0).toString();
+		const evs = db.prepare('SELECT event_type, created_at FROM item_events WHERE item_id = ? ORDER BY created_at ASC').all(req.params.id);
+		const findAt = (k) => evs.find(e => e.event_type === k)?.created_at || null;
+		const reportedAt = findAt('reported') || row.created_at;
+		const scheduledAt = findAt('scheduled_for_pickup') || null;
+		const pickedAt = findAt('status_picked_up') || null;
+		const recycledAt = findAt('status_recycled') || null;
+		const refurbAt = findAt('status_refurbished') || null;
+		const disposedAt = findAt('status_disposed') || null;
+		const processedLabel = recycledAt ? 'Recycled' : refurbAt ? 'Refurbished' : disposedAt ? 'Disposed' : null;
+		const processedAt = recycledAt || refurbAt || disposedAt || null;
+
+		// Latest pickup info
+		const p = getLatestPickupInfoForItem(Number(req.params.id));
+
+		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
+				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
+				<svg x=\"16\" y=\"16\" width=\"${size}\" height=\"${size}\" viewBox=\"0 0 ${size} ${size}\">${qrInner}</svg>
+				<g font-family=\"Arial, Helvetica, sans-serif\" fill=\"#111827\">
+					<text x=\"${textX}\" y=\"36\" font-size=\"16\" font-weight=\"700\">${escapeXml(row.name || 'Item')}</text>
+					<text x=\"${textX}\" y=\"56\" font-size=\"12\">Facility: ${escapeXml(settings.facility_name || '')}</text>
+					<text x=\"${textX}\" y=\"72\" font-size=\"12\">Auth: ${escapeXml(settings.facility_authorization_no || '')}</text>
+					<text x=\"${textX}\" y=\"88\" font-size=\"12\">Contact: ${escapeXml(settings.facility_contact_name || '')} ${settings.facility_contact_phone ? '| ' + escapeXml(settings.facility_contact_phone) : ''}</text>
+					<text x=\"${textX}\" y=\"104\" font-size=\"12\">Address: ${escapeXml((settings.facility_address || '').slice(0, 60))}</text>
+					<text x=\"${textX}\" y=\"126\" font-size=\"12\">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"142\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
+					<text x=\"${textX}\" y=\"158\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"174\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"190\" font-size=\"12\">Weight: ${escapeXml(weightStr)} kg</text>
+					<text x=\"${textX}\" y=\"206\" font-size=\"12\">Age: ${escapeXml(ageDays != null ? ageDays + ' days' : 'N/A')}</text>
+					<text x=\"${textX}\" y=\"222\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"246\" font-size=\"12\" font-weight=\"700\">Timeline</text>
+					<text x=\"${textX}\" y=\"262\" font-size=\"12\">Reported: ${escapeXml(reportedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"278\" font-size=\"12\">Scheduled: ${escapeXml(scheduledAt || '—')}</text>
+					<text x=\"${textX}\" y=\"294\" font-size=\"12\">Picked up: ${escapeXml(pickedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"310\" font-size=\"12\">${escapeXml(processedLabel || 'Processed')}: ${escapeXml(processedAt || '—')}</text>
+					<text x=\"${textX}\" y=\"334\" font-size=\"12\" font-weight=\"700\">Vendor & Transport</text>
+					<text x=\"${textX}\" y=\"350\" font-size=\"12\">Vendor: ${escapeXml(p?.vendor_name || '—')} ${p?.vendor_type ? '(' + escapeXml(p.vendor_type) + ')' : ''}</text>
+					<text x=\"${textX}\" y=\"366\" font-size=\"12\">License: ${escapeXml(p?.vendor_license || '—')}</text>
+					<text x=\"${textX}\" y=\"382\" font-size=\"12\">Contact: ${escapeXml(p?.vendor_contact_name || '—')} ${p?.vendor_phone ? '| ' + escapeXml(p.vendor_phone) : ''} ${p?.vendor_email ? '| ' + escapeXml(p.vendor_email) : ''}</text>
+					<text x=\"${textX}\" y=\"398\" font-size=\"12\">Address: ${escapeXml((p?.vendor_address || '—').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"414\" font-size=\"12\">Manifest: ${escapeXml(p?.manifest_no || '—')}</text>
+					<text x=\"${textX}\" y=\"430\" font-size=\"12\">Transporter: ${escapeXml(p?.transporter_name || '—')} ${p?.vehicle_no ? '| ' + escapeXml(p.vehicle_no) : ''} ${p?.transporter_contact ? '| ' + escapeXml(p.transporter_contact) : ''}</text>
+					<text x=\"${textX}\" y=\"456\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"472\" font-size=\"12\">Created: ${escapeXml(row.created_at)}</text>
+					<text x=\"${textX}\" y=\"488\" font-size=\"12\">Updated: ${escapeXml(row.updated_at)}</text>
+					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(dayjs().format('YYYY-MM-DD HH:mm:ss'))}</text>
+				</g>
+			</svg>`;
+		res.type('image/svg+xml').send(label);
+	} catch (e) {
+		next(e);
+	}
+});
+
+export default router;
