@@ -123,6 +123,7 @@ export default function Campaigns() {
 								<th>Start Date</th>
 								<th>End Date</th>
 								<th>Description</th>
+								<th></th>
 							</tr>
 						</thead>
 						<tbody>
@@ -130,9 +131,12 @@ export default function Campaigns() {
 								<tr key={c.id}>
 									<td>{c.title}</td>
 									<td className="mono">{c.type || '—'}</td>
-									<td className="mono">{c.start_date || '—'}</td>
-									<td className="mono">{c.end_date || '—'}</td>
+									<td className="mono">{(c.start_date || '').slice(0,10) || '—'}</td>
+									<td className="mono">{(c.end_date || '').slice(0,10) || '—'}</td>
 									<td>{c.description || '—'}</td>
+									<td>
+										<button className="btn secondary" onClick={() => { if (confirm('Delete this campaign and all associated data?')) { fetch(`/api/campaigns/${c.id}`, { method: 'DELETE' }).then(() => { setCampaigns(prev => prev.filter(x => x.id !== c.id)); }); } }}>Delete</button>
+									</td>
 								</tr>
 							))}
 						</tbody>

@@ -173,3 +173,19 @@ router.post('/rewards/:id/redeem', (req, res) => {
         .run(req.params.id, user_id, user_name, department_name, now);
     res.json({ ok: true });
 });
+
+// Delete a campaign and cascade related data
+router.delete('/:id', (req, res) => {
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ error: 'invalid id' });
+    const tx = db.transaction(() => {
+        db.prepare('DELETE FROM education_completions WHERE resource_id IN (SELECT id FROM education_resources WHERE campaign_id = ?)').run(id);
+        db.prepare('DELETE FROM education_resources WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM drive_registrations WHERE drive_id IN (SELECT id FROM drives WHERE campaign_id = ?)').run(id);
+        db.prepare('DELETE FROM drives WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM user_scores WHERE campaign_id = ?').run(id);
+        db.prepare('DELETE FROM campaigns WHERE id = ?').run(id);
+    });
+    tx();
+    res.json({ ok: true });
+});
