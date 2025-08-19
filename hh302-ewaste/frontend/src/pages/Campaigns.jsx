@@ -104,8 +104,14 @@ export default function Campaigns() {
 					<select value={form.type} onChange={e => setForm(v => ({ ...v, type: e.target.value }))}>
 						{['awareness','challenge','drive','reward'].map(t => <option key={t} value={t}>{t}</option>)}
 					</select>
-					<input className="input" type="date" placeholder="Start Date" title="Start Date" value={form.start_date} onChange={e => setForm(v => ({ ...v, start_date: e.target.value }))} />
-					<input className="input" type="date" placeholder="End Date" title="End Date" value={form.end_date} onChange={e => setForm(v => ({ ...v, end_date: e.target.value }))} />
+					<div style={{ display: 'flex', flexDirection: 'column' }}>
+						<label className="muted" style={{ fontSize: 12 }}>Start Date</label>
+						<input className="input" type="date" placeholder="Start Date" title="Start Date" value={form.start_date} onChange={e => setForm(v => ({ ...v, start_date: e.target.value }))} />
+					</div>
+					<div style={{ display: 'flex', flexDirection: 'column' }}>
+						<label className="muted" style={{ fontSize: 12 }}>End Date</label>
+						<input className="input" type="date" placeholder="End Date" title="End Date" value={form.end_date} onChange={e => setForm(v => ({ ...v, end_date: e.target.value }))} />
+					</div>
 					<button className="btn" type="submit">Create</button>
 				</form>
 				<div style={{ marginTop: 8 }}>
