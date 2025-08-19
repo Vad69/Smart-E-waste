@@ -36,10 +36,13 @@ router.post('/', (req, res) => {
 router.get('/:id/scores', (req, res) => {
 	const top = Number(req.query.top || 10);
 	const rows = db.prepare(`
-		SELECT user_id, user_name, MAX(department_name) as department_name, SUM(points) as points
+		SELECT user_id,
+		       MAX(user_name) as user_name,
+		       MAX(department_name) as department_name,
+		       SUM(points) as points
 		FROM user_scores
 		WHERE campaign_id = ?
-		GROUP BY user_id, user_name
+		GROUP BY user_id
 		ORDER BY points DESC
 		LIMIT ?
 	`).all(req.params.id, top);
@@ -50,16 +53,23 @@ router.post('/:id/award', (req, res) => {
 	const { user_id, user_name, department_name = null, points } = req.body || {};
 	if (!user_id || !points) return res.status(400).json({ error: 'user_id and points are required' });
 	const now = nowIso();
+	const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+	const canonicalName = existing?.user_name || firstName;
 	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-		.run(user_id, user_name || null, points, req.params.id, now, department_name);
+		.run(user_id, canonicalName, points, req.params.id, now, department_name);
 	res.status(201).json({ ok: true });
 });
 
 router.get('/scoreboard/all', (req, res) => {
 	const rows = db.prepare(`
-		SELECT user_id, user_name, MAX(department_name) as department_name, SUM(points) as points
+		SELECT user_id,
+		       MAX(user_name) as user_name,
+		       MAX(department_name) as department_name,
+		       SUM(points) as points
 		FROM user_scores
-		GROUP BY user_id, user_name
+		GROUP BY user_id
 		ORDER BY points DESC
 		LIMIT 20
 	`).all();
@@ -93,8 +103,12 @@ router.post('/education/:resourceId/complete', (req, res) => {
     db.prepare('INSERT INTO education_completions (resource_id, user_id, user_name, department_name, points_awarded, completed_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(req.params.resourceId, user_id, user_name, department_name, r.points || 0, now);
     if ((r.points || 0) > 0 && r.campaign_id) {
+        const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(user_id);
+        const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+        const canonicalName = existing?.user_name || firstName;
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(user_id, user_name, r.points || 0, r.campaign_id, now, department_name);
+            .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, department_name);
     }
     res.status(201).json({ ok: true, points: r.points || 0 });
 });
@@ -147,8 +161,12 @@ router.post('/drives/:driveId/attend', (req, res) => {
     db.prepare('UPDATE drive_registrations SET attended = 1, attended_at = ? WHERE id = ?').run(now, reg.id);
     const d = db.prepare('SELECT * FROM drives WHERE id = ?').get(req.params.driveId);
     if ((d.points || 0) > 0 && d.campaign_id) {
+        const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+            .get(reg.user_id);
+        const firstName = String(reg.user_name || '').trim().split(/\s+/)[0] || null;
+        const canonicalName = existing?.user_name || firstName;
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
-            .run(reg.user_id, reg.user_name, d.points || 0, d.campaign_id, now, reg.department_name);
+            .run(reg.user_id, canonicalName, d.points || 0, d.campaign_id, now, reg.department_name);
     }
     res.json({ ok: true });
 });
