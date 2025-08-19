@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db, nowIso } from '../db.js';
 import { classifyItem } from '../services/classifier.js';
 import { generateQrSvg } from '../services/qr.js';
+import { formatInTz, nowInTz } from '../time.js';
 
 const router = express.Router();
 
@@ -194,22 +195,21 @@ router.get('/:id/label.svg', async (req, res, next) => {
 		const textX = size + 40;
 		const qrSvg = await generateQrSvg(row.qr_uid, size);
 		const qrInner = qrSvg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-		const now = new Date().toISOString();
-		const label = `<?xml version="1.0" encoding="UTF-8"?>
-			<svg xmlns="http://www.w3.org/2000/svg" width="${labelWidth}" height="${labelHeight}">
-				<rect width="100%" height="100%" fill="#ffffff"/>
-				<svg x="16" y="16" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">${qrInner}</svg>
-				<g font-family="Arial, Helvetica, sans-serif" fill="#111827">
-					<text x="${textX}" y="36" font-size="16" font-weight="700">${escapeXml(row.name || 'Item')}</text>
-					<text x="${textX}" y="60" font-size="12">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
-					<text x="${textX}" y="78" font-size="12">Status: ${escapeXml(row.status)}</text>
-					<text x="${textX}" y="96" font-size="12">Category: ${escapeXml(row.category_key || 'N/A')}</text>
-					<text x="${textX}" y="114" font-size="12">Condition: ${escapeXml(row.condition || 'N/A')}</text>
-					<text x="${textX}" y="132" font-size="12">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
-					<text x="${textX}" y="150" font-size="12">QR UID: ${escapeXml(row.qr_uid)}</text>
-					<text x="${textX}" y="168" font-size="12">Created: ${escapeXml(row.created_at)}</text>
-					<text x="${textX}" y="186" font-size="12">Updated: ${escapeXml(row.updated_at)}</text>
-					<text x="16" y="${labelHeight - 16}" font-size="10" fill="#6b7280">Printed: ${escapeXml(now)}</text>
+		const label = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+			<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${labelWidth}\" height=\"${labelHeight}\">
+				<rect width=\"100%\" height=\"100%\" fill=\"#ffffff\"/>
+				<svg x=\"16\" y=\"16\" width=\"${size}\" height=\"${size}\" viewBox=\"0 0 ${size} ${size}\">${qrInner}</svg>
+				<g font-family=\"Arial, Helvetica, sans-serif\" fill=\"#111827\">
+					<text x=\"${textX}\" y=\"36\" font-size=\"16\" font-weight=\"700\">${escapeXml(row.name || 'Item')}</text>
+					<text x=\"${textX}\" y=\"60\" font-size=\"12\">Dept: ${escapeXml(row.department_name || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"78\" font-size=\"12\">Status: ${escapeXml(row.status)}</text>
+					<text x=\"${textX}\" y=\"96\" font-size=\"12\">Category: ${escapeXml(row.category_key || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"114\" font-size=\"12\">Condition: ${escapeXml(row.condition || 'N/A')}</text>
+					<text x=\"${textX}\" y=\"132\" font-size=\"12\">Desc: ${escapeXml((row.description || 'N/A').slice(0,60))}</text>
+					<text x=\"${textX}\" y=\"150\" font-size=\"12\">QR UID: ${escapeXml(row.qr_uid)}</text>
+					<text x=\"${textX}\" y=\"168\" font-size=\"12\">Created: ${escapeXml(formatInTz(row.created_at))}</text>
+					<text x=\"${textX}\" y=\"186\" font-size=\"12\">Updated: ${escapeXml(formatInTz(row.updated_at))}</text>
+					<text x=\"16\" y=\"${labelHeight - 16}\" font-size=\"10\" fill=\"#6b7280\">Printed: ${escapeXml(nowInTz())}</text>
 				</g>
 			</svg>`;
 		res.type('image/svg+xml').send(label);
