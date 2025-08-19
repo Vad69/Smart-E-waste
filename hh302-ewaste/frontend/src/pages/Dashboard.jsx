@@ -101,7 +101,7 @@ export default function Dashboard() {
 
 	return (
 		<div className="grid">
-			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(7, minmax(0, 1fr))' }}>
 				<div className="card">
 					<h3>Total Items</h3>
 					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.totalItems ?? '—'}</div>
@@ -122,12 +122,28 @@ export default function Dashboard() {
 					<h3>Hazardous Prevented (kg)</h3>
 					<div style={{ fontSize: 28, fontWeight: 700 }}>{impact?.hazardousPreventedKg?.toFixed?.(1) ?? '—'}</div>
 				</div>
+				<div className="card">
+					<h3>Total Departments</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.departmentsCount ?? '—'}</div>
+				</div>
+				<div className="card">
+					<h3>Campaigns</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{campaignsCount}</div>
+				</div>
 			</div>
 
-			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
+			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
 				<div className="card">
-					<h3>Total Campaigns</h3>
-					<div style={{ fontSize: 28, fontWeight: 700 }}>{campaignsCount}</div>
+					<h3>Recycled</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.recycledCount ?? 0}</div>
+				</div>
+				<div className="card">
+					<h3>Refurbished</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.refurbishedCount ?? 0}</div>
+				</div>
+				<div className="card">
+					<h3>Disposed</h3>
+					<div style={{ fontSize: 28, fontWeight: 700 }}>{summary?.disposedCount ?? 0}</div>
 				</div>
 			</div>
 
