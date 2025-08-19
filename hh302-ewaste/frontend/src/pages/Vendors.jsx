@@ -20,9 +20,20 @@ export default function Vendors() {
 
 	function submit(e) {
 		e.preventDefault();
-		const payload = { ...form, capacity_tpm: form.capacity_tpm ? Number(form.capacity_tpm) : undefined };
+		const capacity = form.capacity_tpm === '' ? null : Number(form.capacity_tpm);
+		const payload = { ...form, capacity_tpm: capacity };
 		fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-			.then(r => r.json()).then(() => { setForm({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '', contact_name: '', phone: '', email: '', address: '' }); load(); });
+			.then(async r => {
+				if (!r.ok) {
+					const err = await r.json().catch(() => ({}));
+					throw new Error(err?.error || 'Failed to save vendor');
+				}
+				return r.json();
+			})
+			.then(() => { setForm({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '', contact_name: '', phone: '', email: '', address: '' }); load(); })
+			.catch(e => {
+				alert(e.message || 'Failed to save vendor');
+			});
 	}
 
 	function removeVendor(id) { fetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
