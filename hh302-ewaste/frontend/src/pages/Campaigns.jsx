@@ -22,8 +22,7 @@ export default function Campaigns() {
 	const [completeForm, setCompleteForm] = useState({ resource_id: '', user_id: '', user_name: '', department_name: '' });
 
 	const [drives, setDrives] = useState([]);
-	const [driveForm, setDriveForm] = useState({ title: '', description: '', start_date: '', end_date: '', location: '', capacity: '', points: 20 });
-	const [regForm, setRegForm] = useState({ drive_id: '', user_id: '', user_name: '', department_name: '' });
+	const [driveForm, setDriveForm] = useState({ title: '', description: '', start_date: '', end_date: '', location: '', points: 20 });
 	const [attendForm, setAttendForm] = useState({ drive_id: '', user_id: '' });
 
 	const [rewards, setRewards] = useState([]);
@@ -72,19 +71,14 @@ export default function Campaigns() {
 	}
 	function createDrive(e) {
 		e.preventDefault(); if (!selected) return;
-		const payload = { ...driveForm, capacity: driveForm.capacity ? Number(driveForm.capacity) : null, points: Number(driveForm.points || 0) };
+		const payload = { ...driveForm, points: Number(driveForm.points || 0) };
 		fetch(`/api/campaigns/${selected}/drives`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-			.then(() => { setDriveForm({ title: '', description: '', start_date: '', end_date: '', location: '', capacity: '', points: 20 }); loadDrives(); });
-	}
-	function registerDrive(e) {
-		e.preventDefault(); if (!regForm.drive_id) return;
-		fetch(`/api/campaigns/drives/${regForm.drive_id}/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: regForm.user_id, user_name: regForm.user_name, department_name: regForm.department_name }) })
-			.then(() => setRegForm({ drive_id: '', user_id: '', user_name: '', department_name: '' }));
+			.then(() => { setDriveForm({ title: '', description: '', start_date: '', end_date: '', location: '', points: 20 }); loadDrives(); });
 	}
 	function attendDrive(e) {
 		e.preventDefault(); if (!attendForm.drive_id) return;
 		fetch(`/api/campaigns/drives/${attendForm.drive_id}/attend`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: attendForm.user_id }) })
-			.then(() => setAttendForm({ drive_id: '', user_id: '' }));
+			.then(() => { setAttendForm({ drive_id: '', user_id: '' }); loadLeaderboard(); });
 	}
 	function addReward(e) {
 		e.preventDefault();
@@ -216,10 +210,9 @@ export default function Campaigns() {
 			</Section>
 
 			<Section title="Collection Drives">
-				<form onSubmit={createDrive} className="grid" style={{ gridTemplateColumns: 'repeat(7, 1fr)', gap: 8 }}>
+				<form onSubmit={createDrive} className="grid" style={{ gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
 					<input className="input" placeholder="Title" value={driveForm.title} onChange={e => setDriveForm(v => ({ ...v, title: e.target.value }))} />
 					<input className="input" placeholder="Location" value={driveForm.location} onChange={e => setDriveForm(v => ({ ...v, location: e.target.value }))} />
-					<input className="input" placeholder="Capacity" value={driveForm.capacity} onChange={e => setDriveForm(v => ({ ...v, capacity: e.target.value }))} />
 					<input className="input" type="date" value={driveForm.start_date} onChange={e => setDriveForm(v => ({ ...v, start_date: e.target.value }))} />
 					<input className="input" type="date" value={driveForm.end_date} onChange={e => setDriveForm(v => ({ ...v, end_date: e.target.value }))} />
 					<input className="input" type="number" placeholder="Points" value={driveForm.points} onChange={e => setDriveForm(v => ({ ...v, points: e.target.value }))} />
@@ -246,16 +239,6 @@ export default function Campaigns() {
 						</table>
 					)}
 				</div>
-				<form onSubmit={registerDrive} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
-					<select value={regForm.drive_id} onChange={e => setRegForm(v => ({ ...v, drive_id: e.target.value }))}>
-						<option value="">Select drive</option>
-						{drives.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
-					</select>
-					<input className="input" placeholder="User ID" value={regForm.user_id} onChange={e => setRegForm(v => ({ ...v, user_id: e.target.value }))} />
-					<input className="input" placeholder="User Name" value={regForm.user_name} onChange={e => setRegForm(v => ({ ...v, user_name: e.target.value }))} />
-					<input className="input" placeholder="Department" value={regForm.department_name} onChange={e => setRegForm(v => ({ ...v, department_name: e.target.value }))} />
-					<button className="btn" type="submit">Register</button>
-				</form>
 				<form onSubmit={attendDrive} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
 					<select value={attendForm.drive_id} onChange={e => setAttendForm(v => ({ ...v, drive_id: e.target.value }))}>
 						<option value="">Select drive</option>
