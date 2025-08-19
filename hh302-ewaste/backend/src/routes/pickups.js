@@ -15,6 +15,16 @@ function mapPickup(row) {
 	};
 }
 
+function normalizeLocal(dt) {
+	if (!dt) return null;
+	let s = String(dt).trim();
+	if (!s) return null;
+	if (s.includes('T')) s = s.replace('T', ' ');
+	const d = dayjs(s);
+	if (!d.isValid()) return null;
+	return d.format('YYYY-MM-DD HH:mm:ss');
+}
+
 router.get('/', (req, res) => {
 	const rows = db.prepare('SELECT p.*, v.name as vendor_name FROM pickups p JOIN vendors v ON v.id = p.vendor_id ORDER BY p.id DESC').all();
 	const withCounts = rows.map(p => {
@@ -49,9 +59,11 @@ router.post('/', (req, res) => {
 	if (!vendor.active) return res.status(400).json({ error: 'Vendor is inactive' });
 	if (!Array.isArray(item_ids) || item_ids.length === 0) return res.status(400).json({ error: 'item_ids must be a non-empty array' });
 
+	const schedAt = normalizeLocal(scheduled_date);
+	if (!schedAt) return res.status(400).json({ error: 'scheduled_date is invalid. Use YYYY-MM-DD HH:mm or YYYY-MM-DDTHH:mm' });
 	const now = nowIso();
 	const pickupInfo = db.prepare('INSERT INTO pickups (vendor_id, scheduled_date, status, created_at) VALUES (?, ?, ?, ?)')
-		.run(vendor_id, scheduled_date, 'scheduled', now);
+		.run(vendor_id, schedAt, 'scheduled', now);
 	const pickup_id = pickupInfo.lastInsertRowid;
 
 	const insertPI = db.prepare('INSERT INTO pickup_items (pickup_id, item_id) VALUES (?, ?)');
@@ -61,8 +73,8 @@ router.post('/', (req, res) => {
 		const item = db.prepare('SELECT * FROM items WHERE id = ?').get(itemId);
 		if (!item) continue;
 		insertPI.run(pickup_id, itemId);
-		updateItem.run('scheduled', scheduled_date, itemId);
-		insertEvent.run(itemId, 'scheduled_for_pickup', `Pickup ${pickup_id} on ${scheduled_date}`, scheduled_date);
+		updateItem.run('scheduled', schedAt, itemId);
+		insertEvent.run(itemId, 'scheduled_for_pickup', `Pickup ${pickup_id} on ${schedAt}`, schedAt);
 	}
 
 	const row = db.prepare('SELECT * FROM pickups WHERE id = ?').get(pickup_id);
