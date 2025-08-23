@@ -22,6 +22,7 @@ import UserLeaderboard from './pages/UserLeaderboard.jsx';
 import UserSettings from './pages/UserSettings.jsx';
 import VendorApp from './pages/VendorApp.jsx';
 import VendorDashboard from './pages/VendorDashboard.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 
 function RequireAuth() {
 	const location = useLocation();
@@ -63,6 +64,7 @@ const router = createBrowserRouter([
 	{
 		path: '/u',
 		element: <RequireUserAuth />,
+		errorElement: <ErrorBoundary />,
 		children: [
 			{
 				path: '/u',
@@ -78,6 +80,7 @@ const router = createBrowserRouter([
 	{
 		path: '/v',
 		element: <RequireVendorAuth />,
+		errorElement: <ErrorBoundary />,
 		children: [
 			{
 				path: '/v',
@@ -91,10 +94,12 @@ const router = createBrowserRouter([
 	{
 		path: '/',
 		element: <RequireAuth />,
+		errorElement: <ErrorBoundary />,
 		children: [
 			{
 				path: '/',
 				element: <App />,
+				errorElement: <ErrorBoundary />,
 				children: [
 					{ index: true, element: <Dashboard /> },
 					{ path: 'items', element: <Items /> },

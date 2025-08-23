@@ -33,16 +33,16 @@ export default function Campaigns() {
 	const [balanceUserId, setBalanceUserId] = useState('');
 	const [balance, setBalance] = useState(null);
 
-	function loadCampaigns() { fetch('/api/campaigns').then(r => r.json()).then(d => setCampaigns(d.campaigns)); }
+	function loadCampaigns() { fetch('/api/campaigns').then(r => r.json()).then(d => setCampaigns(Array.isArray(d?.campaigns) ? d.campaigns : [])).catch(() => setCampaigns([])); }
 	function loadLeaderboard() {
-		if (selected) fetch(`/api/campaigns/${selected}/scores`).then(r => r.json()).then(d => setLeaderboard(d.leaderboard));
-		else fetch('/api/campaigns/scoreboard/all').then(r => r.json()).then(d => setLeaderboard(d.leaderboard));
+		if (selected) fetch(`/api/campaigns/${selected}/scores`).then(r => r.json()).then(d => setLeaderboard(Array.isArray(d?.leaderboard) ? d.leaderboard : [])).catch(() => setLeaderboard([]));
+		else fetch('/api/campaigns/scoreboard/all').then(r => r.json()).then(d => setLeaderboard(Array.isArray(d?.leaderboard) ? d.leaderboard : [])).catch(() => setLeaderboard([]));
 	}
-	function loadEducation() { if (!selected) { setResources([]); return; } fetch(`/api/campaigns/${selected}/education`).then(r => r.json()).then(d => setResources(d.resources)); }
-	function loadDrives() { if (!selected) { setDrives([]); return; } fetch(`/api/campaigns/${selected}/drives`).then(r => r.json()).then(d => setDrives(d.drives)); }
+	function loadEducation() { if (!selected) { setResources([]); return; } fetch(`/api/campaigns/${selected}/education`).then(r => r.json()).then(d => setResources(Array.isArray(d?.resources) ? d.resources : [])).catch(() => setResources([])); }
+	function loadDrives() { if (!selected) { setDrives([]); return; } fetch(`/api/campaigns/${selected}/drives`).then(r => r.json()).then(d => setDrives(Array.isArray(d?.drives) ? d.drives : [])).catch(() => setDrives([])); }
 	function loadRewards() {
 		if (!selected) { setRewards([]); return; }
-		fetch(`/api/campaigns/${selected}/rewards`).then(r => r.json()).then(d => setRewards(d.rewards));
+		fetch(`/api/campaigns/${selected}/rewards`).then(r => r.json()).then(d => setRewards(Array.isArray(d?.rewards) ? d.rewards : [])).catch(() => setRewards([]));
 	}
 
 	useEffect(() => { loadCampaigns(); loadLeaderboard(); }, []);
@@ -119,10 +119,10 @@ export default function Campaigns() {
 		e.preventDefault();
 		if (!balanceUserId) return;
 		const path = selected ? `/api/campaigns/${selected}/user/${encodeURIComponent(balanceUserId)}/balance` : `/api/campaigns/user/${encodeURIComponent(balanceUserId)}/balance`;
-		fetch(path).then(r => r.json()).then(d => setBalance(d.points ?? 0));
+		fetch(path).then(r => r.json()).then(d => setBalance(d.points ?? 0)).catch(() => setBalance(0));
 	}
 
-	const selectedCampaign = useMemo(() => campaigns.find(c => String(c.id) === String(selected)), [campaigns, selected]);
+	const selectedCampaign = useMemo(() => (campaigns || []).find(c => String(c.id) === String(selected)), [campaigns, selected]);
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
@@ -156,7 +156,7 @@ export default function Campaigns() {
 							</tr>
 						</thead>
 						<tbody>
-							{campaigns.map(c => (
+							{(campaigns || []).map(c => (
 								<tr key={c.id}>
 									<td>{c.title}</td>
 									<td className="mono">{c.type || '—'}</td>
@@ -177,7 +177,7 @@ export default function Campaigns() {
 				<div className="row" style={{ gap: 8 }}>
 					<select value={selected} onChange={e => setSelected(e.target.value)}>
 						<option value="">All campaigns</option>
-						{campaigns.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+						{(campaigns || []).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
 					</select>
 					{selectedCampaign && <div className="muted">{selectedCampaign.description}</div>}
 				</div>
@@ -207,7 +207,7 @@ export default function Campaigns() {
 								</tr>
 							</thead>
 							<tbody>
-								{resources.map(r => (
+								{(resources || []).map(r => (
 									<tr key={r.id}>
 										<td>{r.title}</td>
 										<td className="mono">{r.content_type}</td>
@@ -224,7 +224,7 @@ export default function Campaigns() {
 				<form onSubmit={completeResource} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
 					<select value={completeForm.resource_id} onChange={e => setCompleteForm(v => ({ ...v, resource_id: e.target.value }))}>
 						<option value="">Select resource to complete</option>
-						{resources.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
+						{(resources || []).map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
 					</select>
 					<input className="input" placeholder="User ID" value={completeForm.user_id} onChange={e => setCompleteForm(v => ({ ...v, user_id: e.target.value }))} />
 					<input className="input" placeholder="User Name" value={completeForm.user_name} onChange={e => setCompleteForm(v => ({ ...v, user_name: e.target.value }))} />
@@ -251,7 +251,7 @@ export default function Campaigns() {
 								</tr>
 							</thead>
 							<tbody>
-								{drives.map(d => (
+								{(drives || []).map(d => (
 									<tr key={d.id}>
 										<td>{d.title}</td>
 										<td className="mono">{d.start_date || '—'} → {d.end_date || '—'}</td>
@@ -266,7 +266,7 @@ export default function Campaigns() {
 				<form onSubmit={attendDrive} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
 					<select value={attendForm.drive_id} onChange={e => setAttendForm(v => ({ ...v, drive_id: e.target.value }))}>
 						<option value="">Select drive</option>
-						{drives.map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
+						{(drives || []).map(d => <option key={d.id} value={d.id}>{d.title}</option>)}
 					</select>
 					<input className="input" placeholder="User ID" value={attendForm.user_id} onChange={e => setAttendForm(v => ({ ...v, user_id: e.target.value }))} />
 					<input className="input" placeholder="User Name (first name)" value={attendForm.user_name} onChange={e => setAttendForm(v => ({ ...v, user_name: e.target.value }))} />
@@ -296,7 +296,7 @@ export default function Campaigns() {
 								</tr>
 							</thead>
 							<tbody>
-								{rewards.map(r => (
+								{(rewards || []).map(r => (
 									<tr key={r.id}>
 										<td>{r.title}</td>
 										<td className="mono">{r.cost_points} pts</td>
@@ -314,7 +314,7 @@ export default function Campaigns() {
 				<form onSubmit={redeemReward} className="row wrap" style={{ marginTop: 8, gap: 8 }}>
 					<select value={redeemForm.reward_id} onChange={e => setRedeemForm(v => ({ ...v, reward_id: e.target.value }))}>
 						<option value="">Select reward</option>
-						{rewards.map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
+						{(rewards || []).map(r => <option key={r.id} value={r.id}>{r.title}</option>)}
 					</select>
 					<input className="input" placeholder="User ID" value={redeemForm.user_id} onChange={e => setRedeemForm(v => ({ ...v, user_id: e.target.value }))} />
 					<input className="input" placeholder="User Name" value={redeemForm.user_name} onChange={e => setRedeemForm(v => ({ ...v, user_name: e.target.value }))} />
@@ -343,7 +343,7 @@ export default function Campaigns() {
 						</tr>
 					</thead>
 					<tbody>
-						{leaderboard.map(e => (
+						{(leaderboard || []).map(e => (
 							<tr key={e.user_id}>
 								<td>{e.user_name || e.user_id}</td>
 								<td className="mono">{e.user_id}</td>
