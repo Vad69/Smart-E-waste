@@ -18,6 +18,7 @@ export default function Dashboard() {
 	});
 	const [segments, setSegments] = useState({ byDept: [], byCategory: [] });
 	const [impact, setImpact] = useState(null);
+	const [sustainability, setSustainability] = useState(null);
 
 	function monthRange(ym) {
 		const [y, m] = ym.split('-').map(Number);
@@ -57,6 +58,7 @@ export default function Dashboard() {
 		fetchMonthly();
 		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
+		fetch('/api/analytics/sustainability').then(r => r.json()).then(setSustainability);
 		fetch('/api/campaigns').then(r => r.json()).then(d => setCampaignsCount(Array.isArray(d.campaigns) ? d.campaigns.length : 0));
 	}, []);
 
@@ -88,6 +90,11 @@ export default function Dashboard() {
 		const padded = v * 1.1;
 		const mag = Math.pow(10, Math.floor(Math.log10(padded)));
 		return Math.ceil(padded / mag) * mag;
+	}
+	function fmt(n, d = 2) {
+		const num = Number(n);
+		if (!isFinite(num)) return '—';
+		return num.toFixed(d);
 	}
 
 	const trendsData = granularity === 'day' ? dailyTrends : monthlyTrends;
@@ -249,6 +256,34 @@ export default function Dashboard() {
 							<Line type="monotone" dataKey="haz" name="Hazardous prevented (kg)" stroke="#14b8a6" dot={false} />
 						</LineChart>
 					</ResponsiveContainer>
+				</div>
+			</div>
+
+			{/* Sustainability section */}
+			<div className="grid cols-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', marginTop: 16 }}>
+				<div className="card">
+					<h3>Recycled — Sustainability impact</h3>
+					<div>CO2e prevented (kg): <b>{fmt(sustainability?.recycled?.co2eKg)}</b></div>
+					<div>Greenhouse gases prevented (kg): <b>{fmt(sustainability?.recycled?.greenhouseGasesKg)}</b></div>
+					<div>Acidification avoided (kg): <b>{fmt(sustainability?.recycled?.acidificationKg, 3)}</b></div>
+					<div>Eutrophication avoided (kg): <b>{fmt(sustainability?.recycled?.eutrophicationKg, 3)}</b></div>
+					<div>Heavy metals prevented (kg): <b>{fmt(sustainability?.recycled?.heavyMetalsKg)}</b></div>
+				</div>
+				<div className="card">
+					<h3>Refurbished — Sustainability impact</h3>
+					<div>CO2e prevented (kg): <b>{fmt(sustainability?.refurbished?.co2eKg)}</b></div>
+					<div>Greenhouse gases prevented (kg): <b>{fmt(sustainability?.refurbished?.greenhouseGasesKg)}</b></div>
+					<div>Acidification avoided (kg): <b>{fmt(sustainability?.refurbished?.acidificationKg, 3)}</b></div>
+					<div>Eutrophication avoided (kg): <b>{fmt(sustainability?.refurbished?.eutrophicationKg, 3)}</b></div>
+					<div>Heavy metals prevented (kg): <b>{fmt(sustainability?.refurbished?.heavyMetalsKg)}</b></div>
+				</div>
+				<div className="card">
+					<h3>Disposed — Sustainability impact</h3>
+					<div>CO2e prevented (kg): <b>{fmt(sustainability?.disposed?.co2eKg)}</b></div>
+					<div>Greenhouse gases prevented (kg): <b>{fmt(sustainability?.disposed?.greenhouseGasesKg)}</b></div>
+					<div>Acidification avoided (kg): <b>{fmt(sustainability?.disposed?.acidificationKg, 3)}</b></div>
+					<div>Eutrophication avoided (kg): <b>{fmt(sustainability?.disposed?.eutrophicationKg, 3)}</b></div>
+					<div>Heavy metals prevented (kg): <b>{fmt(sustainability?.disposed?.heavyMetalsKg)}</b></div>
 				</div>
 			</div>
 		</div>
