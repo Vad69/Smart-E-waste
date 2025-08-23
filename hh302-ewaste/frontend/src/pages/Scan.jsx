@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 
 function computeAgeDays(item) {
 	if (!item) return null;
@@ -16,47 +16,27 @@ export default function Scan() {
 	const [pickup, setPickup] = useState(null);
 	const [settings, setSettings] = useState(null);
 	const [error, setError] = useState('');
-	const [cameraReady, setCameraReady] = useState(false);
-	const [requesting, setRequesting] = useState(false);
 	const ref = useRef(null);
 	const scannerRef = useRef(null);
 
 	useEffect(() => {
+		try {
+			if (!scannerRef.current) {
+				scannerRef.current = new Html5QrcodeScanner('qr-reader', {
+					fps: 10,
+					qrbox: 250,
+					supportedScanTypes: [
+						Html5QrcodeScanType.SCAN_TYPE_CAMERA,
+						Html5QrcodeScanType.SCAN_TYPE_FILE
+					]
+				}, false);
+				scannerRef.current.render(onScanSuccess, onScanError);
+			}
+		} catch (e) {
+			setError('Failed to initialize scanner');
+		}
 		return () => { scannerRef.current?.clear?.().catch?.(() => {}); };
 	}, []);
-
-	function startScanner() {
-		if (scannerRef.current) return;
-		try {
-			scannerRef.current = new Html5QrcodeScanner('qr-reader', { fps: 10, qrbox: 250 });
-			scannerRef.current.render(onScanSuccess, onScanError);
-		} catch (e) {
-			setError('Failed to start camera');
-		}
-	}
-
-	async function requestCameraPermission() {
-		setError('');
-		setRequesting(true);
-		try {
-			const isSecure = window.isSecureContext || location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/i.test(location.hostname);
-			if (!isSecure) {
-				throw new Error('Camera access requires HTTPS or localhost');
-			}
-			if (!navigator.mediaDevices?.getUserMedia) {
-				throw new Error('Camera API not available in this browser');
-			}
-			const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } });
-			// Immediately stop the preview stream; the scanner will request its own
-			stream.getTracks().forEach(t => t.stop());
-			setCameraReady(true);
-			startScanner();
-		} catch (e) {
-			setError(e?.message || 'Unable to access camera');
-		} finally {
-			setRequesting(false);
-		}
-	}
 
 	function onScanSuccess(text) {
 		setError('');
@@ -98,18 +78,9 @@ export default function Scan() {
 		<div className="grid" style={{ gap: 16 }}>
 			<div className="card">
 				<h3>Scan QR</h3>
-				<div style={{ marginBottom: 8 }}>
-					{!cameraReady ? (
-						<div className="row" style={{ gap: 8 }}>
-							<button className="btn" onClick={requestCameraPermission} disabled={requesting}>{requesting ? 'Requesting…' : 'Enable Camera'}</button>
-							{error && <div className="muted">{error}</div>}
-						</div>
-					) : (
-						<div className="muted">Camera enabled. Point at a QR code.</div>
-					)}
-				</div>
+				<div className="muted" style={{ marginBottom: 8 }}>Use Camera or upload an image file.</div>
 				<div id="qr-reader" style={{ width: 320 }} ref={ref} />
-				{error && cameraReady && <div style={{ color: 'tomato' }}>{error}</div>}
+				{error && <div style={{ color: 'tomato' }}>{error}</div>}
 			</div>
 
 			{result && (
