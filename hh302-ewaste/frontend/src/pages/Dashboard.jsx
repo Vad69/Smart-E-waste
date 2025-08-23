@@ -217,8 +217,8 @@ export default function Dashboard() {
 					<h3>By Department</h3>
 					<ResponsiveContainer width="100%" height="100%">
 						<PieChart>
-							<Pie data={segments.byDept} dataKey="c" nameKey="department" outerRadius={110}>
-								{segments.byDept.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+							<Pie data={segments?.byDept ?? []} dataKey="c" nameKey="department" outerRadius={110}>
+								{(segments?.byDept ?? []).map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
 							</Pie>
 							<Tooltip />
 							<Legend />
@@ -229,8 +229,8 @@ export default function Dashboard() {
 					<h3>By Category</h3>
 					<ResponsiveContainer width="100%" height="100%">
 						<PieChart>
-							<Pie data={segments.byCategory} dataKey="c" nameKey="category" outerRadius={110}>
-								{segments.byCategory.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+							<Pie data={segments?.byCategory ?? []} dataKey="c" nameKey="category" outerRadius={110}>
+								{(segments?.byCategory ?? []).map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
 							</Pie>
 							<Tooltip />
 							<Legend />
