@@ -20,6 +20,8 @@ import UserLogin from './pages/UserLogin.jsx';
 import UserDashboard from './pages/UserDashboard.jsx';
 import UserLeaderboard from './pages/UserLeaderboard.jsx';
 import UserSettings from './pages/UserSettings.jsx';
+import VendorApp from './pages/VendorApp.jsx';
+import VendorDashboard from './pages/VendorDashboard.jsx';
 
 function RequireAuth() {
 	const location = useLocation();
@@ -34,7 +36,16 @@ function RequireUserAuth() {
 	const location = useLocation();
 	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_user_token') : null;
 	if (!token) {
-		return <Navigate to="/u/login" replace state={{ from: location.pathname }} />;
+		return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+	}
+	return <Outlet />;
+}
+
+function RequireVendorAuth() {
+	const location = useLocation();
+	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_vendor_token') : null;
+	if (!token) {
+		return <Navigate to="/login" replace state={{ from: location.pathname }} />;
 	}
 	return <Outlet />;
 }
@@ -65,6 +76,19 @@ const router = createBrowserRouter([
 		]
 	},
 	{
+		path: '/v',
+		element: <RequireVendorAuth />,
+		children: [
+			{
+				path: '/v',
+				element: <VendorApp />,
+				children: [
+					{ index: true, element: <VendorDashboard /> },
+				]
+			}
+		]
+	},
+	{
 		path: '/',
 		element: <RequireAuth />,
 		children: [
@@ -86,7 +110,7 @@ const router = createBrowserRouter([
 				]
 			}
 		]
-	}
+	},
 ]);
 
 createRoot(document.getElementById('root')).render(
