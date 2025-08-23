@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet } from 'react-router-dom';
 import App from './App.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Items from './pages/Items.jsx';
@@ -12,7 +12,6 @@ import Campaigns from './pages/Campaigns.jsx';
 import Departments from './pages/Departments.jsx';
 import Scan from './pages/Scan.jsx';
 import Settings from './pages/Settings.jsx';
-import Login from './pages/Login.jsx';
 import './styles.css';
 import DriveDetail from './pages/DriveDetail.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
