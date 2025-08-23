@@ -18,40 +18,24 @@ import DriveDetail from './pages/DriveDetail.jsx';
 import ErrorBoundary from './ErrorBoundary.jsx';
 
 function RequireAuth() {
-	const location = useLocation();
-	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
-	if (!token) {
-		return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-	}
 	return <Outlet />;
 }
 
 export function authFetch(input, init = {}) {
-	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 	const headers = new Headers(init.headers || {});
-	if (token) headers.set('Authorization', `Bearer ${token}`);
-	return fetch(input, { ...init, headers }).then(r => {
-		if (r.status === 401 || r.status === 403) {
-			try { if (typeof window !== 'undefined') localStorage.removeItem('auth_token'); } catch {}
-			if (typeof window !== 'undefined') {
-				window.location.assign('/login');
-			}
-		}
-		return r;
-	});
+	return fetch(input, { ...init, headers });
 }
 
 const router = createBrowserRouter([
-	{ path: '/login', element: <Login /> },
 	{
 		path: '/',
-		element: <RequireAuth />,
-		errorElement: <ErrorBoundary />,
+		element: <RequireAuth />, 
+		errorElement: <ErrorBoundary />, 
 		children: [
 			{
 				path: '/',
-				element: <App />,
-				errorElement: <ErrorBoundary />,
+				element: <App />, 
+				errorElement: <ErrorBoundary />, 
 				children: [
 					{ index: true, element: <Dashboard /> },
 					{ path: 'items', element: <Items /> },
