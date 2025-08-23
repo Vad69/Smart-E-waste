@@ -64,10 +64,26 @@ router.post('/', (req, res) => {
 	if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
 	if (!VENDOR_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
 	ensureActiveColumn();
-	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)')
-		.run(name, contact_name, phone, email, address, type, license_no, now, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled);
+	// Generate credentials
+	function slugify(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12); }
+	let base = slugify(name) || 'vendor';
+	let candidate = base;
+	let suffix = 0;
+	while (true) {
+		const row = db.prepare('SELECT 1 FROM vendors WHERE username = ?').get(candidate);
+		if (!row) break;
+		suffix += 1;
+		candidate = `${base}${suffix}`;
+	}
+	const username = candidate;
+	const { generateRandomPassword, generateSalt, hashPassword } = require('../services/auth.js');
+	const password = generateRandomPassword(10);
+	const salt = generateSalt(16);
+	const hash = hashPassword(password, salt);
+	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, password_salt, password_hash, password_plain_last) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+		.run(name, contact_name, phone, email, address, type, license_no, now, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, salt, hash, password);
 	const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(info.lastInsertRowid);
-	res.status(201).json({ vendor: mapVendor(row) });
+	res.status(201).json({ vendor: mapVendor(row), credentials: { username, password } });
 });
 
 router.get('/:id', (req, res) => {
@@ -97,6 +113,38 @@ router.post('/:id/restore', (req, res) => {
 	ensureActiveColumn();
 	db.prepare('UPDATE vendors SET active = 1 WHERE id = ?').run(req.params.id);
 	res.json({ ok: true });
+});
+
+router.get('/:id/credentials', (req, res) => {
+	const v = db.prepare('SELECT username, password_plain_last FROM vendors WHERE id = ?').get(req.params.id);
+	if (!v) return res.status(404).json({ error: 'Vendor not found' });
+	res.json({ username: v.username || null, password: v.password_plain_last || null });
+});
+
+router.post('/:id/reset-password', (req, res) => {
+	const existing = db.prepare('SELECT * FROM vendors WHERE id = ?').get(req.params.id);
+	if (!existing) return res.status(404).json({ error: 'Vendor not found' });
+	const { generateRandomPassword, generateSalt, hashPassword } = require('../services/auth.js');
+	const password = generateRandomPassword(10);
+	const salt = generateSalt(16);
+	const hash = hashPassword(password, salt);
+	db.prepare('UPDATE vendors SET password_salt = ?, password_hash = ?, password_plain_last = ? WHERE id = ?').run(salt, hash, password, req.params.id);
+	res.json({ username: existing.username, password });
+});
+
+router.get('/:id/items', (req, res) => {
+	const id = Number(req.params.id);
+	if (!id) return res.status(400).json({ error: 'invalid id' });
+	const items = db.prepare(`
+		SELECT i.* FROM items i
+		WHERE EXISTS (
+			SELECT 1 FROM pickup_items pi
+			JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+		ORDER BY i.updated_at DESC, i.id DESC
+	`).all(id);
+	res.json({ items: items.map(mapItem) });
 });
 
 export default router;

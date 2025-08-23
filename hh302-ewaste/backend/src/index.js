@@ -52,16 +52,27 @@ app.use((req, res, next) => {
 	}
 });
 
-app.use('/api/items', itemsRouter);
-app.use('/api/vendors', vendorsRouter);
-app.use('/api/pickups', pickupsRouter);
-app.use('/api/analytics', analyticsRouter);
-app.use('/api/reports', reportsRouter);
-app.use('/api/settings', settingsRouter);
-app.use('/api/departments', departmentsRouter);
-app.use('/api/campaigns', campaignsRouter);
+function requireAdmin(req, res, next) {
+	if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Forbidden' });
+	next();
+}
+
+import vendorPortalRouter from './routes/vendor_portal.js';
+
+// Admin-only APIs
+app.use('/api/items', requireAdmin, itemsRouter);
+app.use('/api/vendors', requireAdmin, vendorsRouter);
+app.use('/api/pickups', requireAdmin, pickupsRouter);
+app.use('/api/analytics', requireAdmin, analyticsRouter);
+app.use('/api/reports', requireAdmin, reportsRouter);
+app.use('/api/settings', requireAdmin, settingsRouter);
+app.use('/api/departments', requireAdmin, departmentsRouter);
+app.use('/api/campaigns', requireAdmin, campaignsRouter);
 import drivesRouter from './routes/drives.js';
-app.use('/api/drives', drivesRouter);
+app.use('/api/drives', requireAdmin, drivesRouter);
+
+// Vendor portal APIs
+app.use('/api/vendor', vendorPortalRouter);
 
 app.use((err, req, res, next) => {
 	console.error('Unhandled error:', err);
