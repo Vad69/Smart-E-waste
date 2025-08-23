@@ -133,4 +133,45 @@ router.get('/impact-trends', (req, res) => {
 	}
 });
 
+// New sustainability endpoint: compute per-status impacts using provided per-kg factors
+router.get('/sustainability', (req, res) => {
+	// Weights per status
+	const recycledWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'recycled'").get().w;
+	const refurbishedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'refurbished'").get().w;
+	const disposedWeight = db.prepare("SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'disposed'").get().w;
+
+	function metricsFor(weightKg, factors) {
+		return {
+			weightKg,
+			co2eKg: weightKg * factors.co2e,
+			greenhouseGasesKg: weightKg * factors.greenhouse,
+			acidificationKg: weightKg * factors.acidification,
+			eutrophicationKg: weightKg * factors.eutrophication,
+			heavyMetalsKg: weightKg * factors.heavyMetals,
+		};
+	}
+
+	// Factors per 1 kg
+	const FACTORS = {
+		recycled:      { co2e: 1.8, greenhouse: 2.0, acidification: 0.012, eutrophication: 0.003, heavyMetals: 2.0 },
+		refurbished:   { co2e: 0.8, greenhouse: 1.0, acidification: 0.010, eutrophication: 0.002, heavyMetals: 8.0 },
+		disposed:      { co2e: 8.0, greenhouse: 10.0, acidification: 0.020, eutrophication: 0.005, heavyMetals: 3.0 },
+	};
+
+	const recycled = metricsFor(recycledWeight, FACTORS.recycled);
+	const refurbished = metricsFor(refurbishedWeight, FACTORS.refurbished);
+	const disposed = metricsFor(disposedWeight, FACTORS.disposed);
+
+	const totals = {
+		weightKg: recycled.weightKg + refurbished.weightKg + disposed.weightKg,
+		co2eKg: recycled.co2eKg + refurbished.co2eKg + disposed.co2eKg,
+		greenhouseGasesKg: recycled.greenhouseGasesKg + refurbished.greenhouseGasesKg + disposed.greenhouseGasesKg,
+		acidificationKg: recycled.acidificationKg + refurbished.acidificationKg + disposed.acidificationKg,
+		eutrophicationKg: recycled.eutrophicationKg + refurbished.eutrophicationKg + disposed.eutrophicationKg,
+		heavyMetalsKg: recycled.heavyMetalsKg + refurbished.heavyMetalsKg + disposed.heavyMetalsKg,
+	};
+
+	res.json({ recycled, refurbished, disposed, totals, factorsPerKg: FACTORS });
+});
+
 export default router;
