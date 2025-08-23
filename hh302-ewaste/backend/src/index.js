@@ -42,8 +42,9 @@ app.use((req, res, next) => {
 	try {
 		const auth = req.get('authorization') || '';
 		const m = auth.match(/^Bearer\s+(.+)$/i);
-		if (!m) return res.status(401).json({ error: 'Unauthorized' });
-		const token = m[1];
+		let token = m ? m[1] : null;
+		if (!token && req.query && req.query.token) token = String(req.query.token);
+		if (!token) return res.status(401).json({ error: 'Unauthorized' });
 		const row = db.prepare("SELECT value FROM settings WHERE key='auth_token_secret'").get();
 		const payload = verifyToken(token, row?.value || 'insecure');
 		if (!payload) return res.status(401).json({ error: 'Unauthorized' });
