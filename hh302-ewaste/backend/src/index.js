@@ -13,6 +13,8 @@ import settingsRouter from './routes/settings.js';
 import departmentsRouter from './routes/departments.js';
 import campaignsRouter from './routes/campaigns.js';
 import drivesRouter from './routes/drives.js';
+import authRouter from './routes/auth.js';
+import { authMiddleware } from './services/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,6 +31,10 @@ initializeDatabase();
 app.get('/api/health', (req, res) => {
 	res.json({ status: 'ok', time: new Date().toISOString() });
 });
+
+app.use('/api/auth', authRouter);
+
+app.use(authMiddleware);
 
 app.use('/api/items', itemsRouter);
 app.use('/api/vendors', vendorsRouter);
