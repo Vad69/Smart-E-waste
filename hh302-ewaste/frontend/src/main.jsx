@@ -14,6 +14,7 @@ import Scan from './pages/Scan.jsx';
 import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './styles.css';
+import DriveDetail from './pages/DriveDetail.jsx';
 
 function RequireAuth() {
 	const location = useLocation();
@@ -44,6 +45,7 @@ const router = createBrowserRouter([
 					{ index: true, element: <Dashboard /> },
 					{ path: 'items', element: <Items /> },
 					{ path: 'items/:id', element: <ItemDetail /> },
+					{ path: 'drives/:id', element: <DriveDetail /> },
 					{ path: 'vendors', element: <Vendors /> },
 					{ path: 'pickups', element: <Pickups /> },
 					{ path: 'reports', element: <Reports /> },

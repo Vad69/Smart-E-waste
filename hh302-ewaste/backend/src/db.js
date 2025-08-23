@@ -226,6 +226,17 @@ export function initializeDatabase() {
 		try { db.exec('ALTER TABLE rewards ADD COLUMN campaign_id INTEGER'); } catch {}
 	}
 
+	// Drives migrations
+	const driveCols = db.prepare('PRAGMA table_info(drives)').all();
+	const ensureDriveCol = (name, def) => { if (!driveCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE drives ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureDriveCol('qr_uid', 'TEXT');
+
+	// Items linkage to drives
+	const itemCols = db.prepare('PRAGMA table_info(items)').all();
+	if (!itemCols.some(c => c.name === 'drive_id')) {
+		try { db.exec('ALTER TABLE items ADD COLUMN drive_id INTEGER'); } catch {}
+	}
+
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
 	if (categoryCount === 0) {
