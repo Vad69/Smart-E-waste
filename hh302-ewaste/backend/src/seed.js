@@ -4,6 +4,12 @@ import dayjs from 'dayjs';
 
 initializeDatabase();
 
+// Seed default departments if not present
+const defaultDepartments = ['IT', 'Labs', 'Hostel', 'Admin', 'Facilities'];
+for (const deptName of defaultDepartments) {
+	db.prepare('INSERT OR IGNORE INTO departments (name) VALUES (?)').run(deptName);
+}
+
 function insertVendor(name, type, license_no) {
 	const now = nowIso();
 	return db.prepare('INSERT INTO vendors (name, type, license_no, created_at) VALUES (?, ?, ?, ?)')

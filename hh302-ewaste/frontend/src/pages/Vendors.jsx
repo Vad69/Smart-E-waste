@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { authFetch } from '../main.jsx';
 
 export default function Vendors() {
 	const [vendors, setVendors] = useState([]);
@@ -11,7 +12,7 @@ export default function Vendors() {
 		const params = new URLSearchParams();
 		if (typeFilter) params.set('type', typeFilter);
 		if (includeInactive) params.set('include_inactive', '1');
-		fetch('/api/vendors?' + params.toString())
+		authFetch('/api/vendors?' + params.toString())
 			.then(r => r.json())
 			.then(d => setVendors((d && Array.isArray(d.vendors)) ? d.vendors : []))
 			.catch(() => setVendors([]));
@@ -22,7 +23,7 @@ export default function Vendors() {
 		e.preventDefault();
 		const capacity = form.capacity_tpm === '' ? null : Number(form.capacity_tpm);
 		const payload = { ...form, capacity_tpm: capacity };
-		fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		authFetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(async r => {
 				if (!r.ok) {
 					const err = await r.json().catch(() => ({}));
@@ -36,8 +37,8 @@ export default function Vendors() {
 			});
 	}
 
-	function removeVendor(id) { fetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
-	function restoreVendor(id) { fetch(`/api/vendors/${id}/restore`, { method: 'POST' }).then(load); }
+	function removeVendor(id) { authFetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
+	function restoreVendor(id) { authFetch(`/api/vendors/${id}/restore`, { method: 'POST' }).then(load); }
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
