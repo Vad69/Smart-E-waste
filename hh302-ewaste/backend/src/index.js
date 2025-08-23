@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { db, initializeDatabase } from './db.js';
+import { verifyToken } from './services/auth.js';
 
 import itemsRouter from './routes/items.js';
 import vendorsRouter from './routes/vendors.js';
@@ -44,7 +45,6 @@ app.use((req, res, next) => {
 		if (!m) return res.status(401).json({ error: 'Unauthorized' });
 		const token = m[1];
 		const row = db.prepare("SELECT value FROM settings WHERE key='auth_token_secret'").get();
-		const { verifyToken } = await import('./services/auth.js');
 		const payload = verifyToken(token, row?.value || 'insecure');
 		if (!payload) return res.status(401).json({ error: 'Unauthorized' });
 		req.user = payload;
