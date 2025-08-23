@@ -38,4 +38,16 @@ router.post('/vendor-login', (req, res) => {
 	res.json({ token });
 });
 
+router.post('/user-login', (req, res) => {
+	const { username, password } = req.body || {};
+	if (!username || !password) return res.status(400).json({ error: 'Missing username or password' });
+	const u = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+	if (!u) return res.status(401).json({ error: 'Invalid credentials' });
+	const ok = verifyPassword(password, u.password_salt, u.password_hash);
+	if (!ok) return res.status(401).json({ error: 'Invalid credentials' });
+	const secretRow = db.prepare("SELECT value FROM settings WHERE key='auth_token_secret'").get();
+	const token = signToken({ sub: `user:${u.username}`, role: 'user', username: u.username }, secretRow?.value || 'insecure');
+	res.json({ token });
+});
+
 export default router;

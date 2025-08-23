@@ -193,6 +193,17 @@ export function initializeDatabase() {
 			redeemed_at TEXT NOT NULL,
 			FOREIGN KEY(reward_id) REFERENCES rewards(id)
 		);
+
+		CREATE TABLE IF NOT EXISTS users (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			username TEXT NOT NULL UNIQUE,
+			name TEXT,
+			department_name TEXT,
+			password_salt TEXT,
+			password_hash TEXT,
+			password_plain_last TEXT,
+			created_at TEXT NOT NULL
+		);
 	`);
 
 	// Vendor migrations
@@ -240,6 +251,15 @@ export function initializeDatabase() {
 	if (!itemCols.some(c => c.name === 'drive_id')) {
 		try { db.exec('ALTER TABLE items ADD COLUMN drive_id INTEGER'); } catch {}
 	}
+
+	// Users migrations
+	const userCols = db.prepare('PRAGMA table_info(users)').all();
+	const ensureUserCol = (name, def) => { if (!userCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE users ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureUserCol('name', 'TEXT');
+	ensureUserCol('department_name', 'TEXT');
+	ensureUserCol('password_salt', 'TEXT');
+	ensureUserCol('password_hash', 'TEXT');
+	ensureUserCol('password_plain_last', 'TEXT');
 
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;

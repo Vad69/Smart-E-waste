@@ -1,5 +1,6 @@
 import express from 'express';
 import { db, nowIso } from '../db.js';
+import { generateRandomPassword, generateSalt, hashPassword } from '../services/auth.js';
 
 const router = express.Router();
 
@@ -14,6 +15,25 @@ function mapCampaign(row) {
 		points: row.points,
 		created_at: row.created_at
 	};
+}
+
+function ensureUser(username, name = null, department = null) {
+	const existing = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+	if (existing) {
+		// Optionally backfill name/department if missing
+		if ((name || department) && (!existing.name || !existing.department_name)) {
+			try { db.prepare('UPDATE users SET name = COALESCE(name, ?), department_name = COALESCE(department_name, ?) WHERE id = ?').run(name, department, existing.id); } catch {}
+		}
+		return { user: existing, isNew: false, password: existing.password_plain_last };
+	}
+	const now = nowIso();
+	const plain = generateRandomPassword(10);
+	const salt = generateSalt(16);
+	const hash = hashPassword(plain, salt);
+	const info = db.prepare('INSERT INTO users (username, name, department_name, password_salt, password_hash, password_plain_last, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+		.run(username, name, department, salt, hash, plain, now);
+	const created = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+	return { user: created, isNew: true, password: plain };
 }
 
 router.get('/', (req, res) => {
@@ -61,9 +81,28 @@ router.post('/:id/award', (req, res) => {
 	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
 		.get(user_id);
 	const canonicalDept = existingDept?.department_name || (department_name || null);
+	// Ensure user provisioned
+	ensureUser(user_id, canonicalName, canonicalDept);
 	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
 		.run(user_id, canonicalName, points, req.params.id, now, canonicalDept);
 	res.status(201).json({ ok: true });
+});
+
+router.post('/:id/award-with-password', (req, res) => {
+	const { user_id, user_name, department_name = null, points } = req.body || {};
+	if (!user_id || !points) return res.status(400).json({ error: 'user_id and points are required' });
+	const now = nowIso();
+	const existing = db.prepare('SELECT user_name FROM user_scores WHERE user_id = ? AND user_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const firstName = String(user_name || '').trim().split(/\s+/)[0] || null;
+	const canonicalName = existing?.user_name || firstName;
+	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
+		.get(user_id);
+	const canonicalDept = existingDept?.department_name || (department_name || null);
+	const { password } = ensureUser(user_id, canonicalName, canonicalDept);
+	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
+		.run(user_id, canonicalName, points, req.params.id, now, canonicalDept);
+	res.status(201).json({ ok: true, password });
 });
 
 router.get('/scoreboard/all', (req, res) => {
@@ -132,6 +171,8 @@ router.post('/education/:resourceId/complete', (req, res) => {
         const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
             .get(user_id);
         const canonicalDept = existingDept?.department_name || (department_name || null);
+        // Ensure user provisioned
+        ensureUser(user_id, canonicalName, canonicalDept);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
             .run(user_id, canonicalName, r.points || 0, r.campaign_id, now, canonicalDept);
     }
@@ -203,6 +244,8 @@ router.post('/drives/:driveId/attend', (req, res) => {
         const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1')
             .get(user_id);
         const canonicalDept = existingDept?.department_name || (department_name || reg.department_name || null);
+        // Ensure user provisioned
+        ensureUser(user_id, canonicalName, canonicalDept);
         db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
             .run(user_id, canonicalName, d.points || 0, d.campaign_id, now, canonicalDept);
     }
@@ -247,6 +290,8 @@ router.post('/rewards/:id/redeem', (req, res) => {
 	const canonicalName = existingName || firstName;
 	const existingDept = db.prepare('SELECT department_name FROM user_scores WHERE user_id = ? AND department_name IS NOT NULL ORDER BY created_at ASC LIMIT 1').get(user_id)?.department_name || null;
 	const canonicalDept = existingDept || (department_name || null);
+	// Ensure user provisioned
+	ensureUser(user_id, canonicalName, canonicalDept);
 	// Deduct by adding a negative score entry in the same campaign scope
 	db.prepare('INSERT INTO user_scores (user_id, user_name, points, campaign_id, created_at, department_name) VALUES (?, ?, ?, ?, ?, ?)')
 		.run(user_id, canonicalName, -r.cost_points, campaignId, now, canonicalDept);
