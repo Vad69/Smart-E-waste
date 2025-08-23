@@ -56,7 +56,13 @@ export default function Dashboard() {
 	useEffect(() => {
 		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
 		fetchMonthly();
-		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
+		fetch('/api/analytics/segments')
+			.then(r => r.json())
+			.then(d => setSegments({
+				byDept: Array.isArray(d?.byDept) ? d.byDept : [],
+				byCategory: Array.isArray(d?.byCategory) ? d.byCategory : []
+			}))
+			.catch(() => setSegments({ byDept: [], byCategory: [] }));
 		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
 		fetch('/api/analytics/sustainability').then(r => r.json()).then(setSustainability);
 		fetch('/api/campaigns').then(r => r.json()).then(d => setCampaignsCount(Array.isArray(d.campaigns) ? d.campaigns.length : 0));
@@ -218,7 +224,7 @@ export default function Dashboard() {
 					<ResponsiveContainer width="100%" height="100%">
 						<PieChart>
 							<Pie data={segments.byDept} dataKey="c" nameKey="department" outerRadius={110}>
-								{segments.byDept.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+								{(segments.byDept || []).map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
 							</Pie>
 							<Tooltip />
 							<Legend />
@@ -230,7 +236,7 @@ export default function Dashboard() {
 					<ResponsiveContainer width="100%" height="100%">
 						<PieChart>
 							<Pie data={segments.byCategory} dataKey="c" nameKey="category" outerRadius={110}>
-								{segments.byCategory.map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
+								{(segments.byCategory || []).map((_, idx) => <Cell key={idx} fill={COLORS[idx % COLORS.length]} />)}
 							</Pie>
 							<Tooltip />
 							<Legend />
