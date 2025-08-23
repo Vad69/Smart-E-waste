@@ -219,10 +219,11 @@ export function initializeDatabase() {
 	ensureVendorCol('gst_no', 'TEXT');
 	ensureVendorCol('capacity_tpm', 'REAL');
 	ensureVendorCol('categories_handled', 'TEXT');
-	ensureVendorCol('username', 'TEXT UNIQUE');
+	ensureVendorCol('username', 'TEXT');
 	ensureVendorCol('password_salt', 'TEXT');
 	ensureVendorCol('password_hash', 'TEXT');
 	ensureVendorCol('password_plain_last', 'TEXT');
+	try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS vendors_username_idx ON vendors(username)'); } catch {}
 
 	// Pickups migrations (manifest/transporter)
 	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
