@@ -205,6 +205,10 @@ export function initializeDatabase() {
 	ensureVendorCol('gst_no', 'TEXT');
 	ensureVendorCol('capacity_tpm', 'REAL');
 	ensureVendorCol('categories_handled', 'TEXT');
+	ensureVendorCol('username', 'TEXT UNIQUE');
+	ensureVendorCol('password_salt', 'TEXT');
+	ensureVendorCol('password_hash', 'TEXT');
+	ensureVendorCol('password_plain_last', 'TEXT');
 
 	// Pickups migrations (manifest/transporter)
 	const pickupCols = db.prepare('PRAGMA table_info(pickups)').all();
