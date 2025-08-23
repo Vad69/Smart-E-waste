@@ -16,7 +16,7 @@ export default function Campaigns() {
 
 	const [form, setForm] = useState({ title: '', description: '', type: 'awareness', points: 0, start_date: '', end_date: '' });
 	const [award, setAward] = useState({ user_id: '', user_name: '', department_name: '', points: '' });
-	const [passwordAward, setPasswordAward] = useState({ user_id: '', user_name: '', department_name: '', points: '' });
+	// Removed: password award flow
 	const [lastPassword, setLastPassword] = useState('');
 
 	const [resources, setResources] = useState([]);
@@ -60,19 +60,7 @@ export default function Campaigns() {
 		fetch(`/api/campaigns/${selected}/award`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(() => { setAward({ user_id: '', user_name: '', department_name: '', points: '' }); loadLeaderboard(); });
 	}
-	function awardWithPassword(e) {
-		e.preventDefault(); if (!selected) return;
-		const payload = { ...passwordAward, points: Number(passwordAward.points || 0) };
-		fetch(`/api/campaigns/${selected}/award-with-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-			.then(async r => {
-				const d = await r.json().catch(() => ({}));
-				if (!r.ok) throw new Error(d.error || 'Failed to award');
-				setLastPassword(d.password || '');
-				setPasswordAward({ user_id: '', user_name: '', department_name: '', points: '' });
-				loadLeaderboard();
-			})
-			.catch(e => alert(e.message || 'Failed to award'));
-	}
+	// Removed: awardWithPassword handler
 	function addResource(e) {
 		e.preventDefault(); if (!selected) return;
 		const payload = { ...resForm, points: Number(resForm.points || 0) };
@@ -356,16 +344,7 @@ export default function Campaigns() {
 				</table>
 			</Section>
 
-			<Section title="Provision User & Award (show password)">
-				<form onSubmit={awardWithPassword} className="row wrap" style={{ gap: 8 }}>
-					<input className="input" placeholder="User ID" value={passwordAward.user_id} onChange={e => setPasswordAward(v => ({ ...v, user_id: e.target.value }))} />
-					<input className="input" placeholder="User Name" value={passwordAward.user_name} onChange={e => setPasswordAward(v => ({ ...v, user_name: e.target.value }))} />
-					<input className="input" placeholder="Department" value={passwordAward.department_name} onChange={e => setPasswordAward(v => ({ ...v, department_name: e.target.value }))} />
-					<input className="input" type="number" placeholder="Points" value={passwordAward.points} onChange={e => setPasswordAward(v => ({ ...v, points: e.target.value }))} />
-					<button className="btn" type="submit" disabled={!selected}>Award & Show Password</button>
-					{lastPassword && <div className="badge" style={{ marginLeft: 8 }}>Password: <span className="mono">{lastPassword}</span></div>}
-				</form>
-			</Section>
+			{/* Removed: Provision User & Award (show password) */}
 		</div>
 	);
 }
