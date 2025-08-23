@@ -55,7 +55,15 @@ export function authFetch(input, init = {}) {
 	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 	const headers = new Headers(init.headers || {});
 	if (token) headers.set('Authorization', `Bearer ${token}`);
-	return fetch(input, { ...init, headers });
+	return fetch(input, { ...init, headers }).then(r => {
+		if (r.status === 401 || r.status === 403) {
+			try { if (typeof window !== 'undefined') localStorage.removeItem('auth_token'); } catch {}
+			if (typeof window !== 'undefined') {
+				window.location.assign('/login');
+			}
+		}
+		return r;
+	});
 }
 
 const router = createBrowserRouter([
