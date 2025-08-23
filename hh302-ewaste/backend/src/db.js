@@ -4,8 +4,10 @@ import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import dayjs from 'dayjs';
 import { generateRandomPassword, generateSalt, hashPassword } from './services/auth.js';
+import { fileURLToPath } from 'url';
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'ewaste.db');
 
