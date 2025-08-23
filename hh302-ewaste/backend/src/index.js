@@ -60,6 +60,8 @@ app.use('/api/reports', reportsRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/departments', departmentsRouter);
 app.use('/api/campaigns', campaignsRouter);
+import drivesRouter from './routes/drives.js';
+app.use('/api/drives', drivesRouter);
 
 app.use((err, req, res, next) => {
 	console.error('Unhandled error:', err);
