@@ -171,6 +171,16 @@ export function initializeDatabase() {
 			FOREIGN KEY(drive_id) REFERENCES drives(id) ON DELETE CASCADE
 		);
 
+		-- Drive events (tracking like items)
+		CREATE TABLE IF NOT EXISTS drive_events (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			drive_id INTEGER NOT NULL,
+			event_type TEXT NOT NULL,
+			notes TEXT,
+			created_at TEXT NOT NULL,
+			FOREIGN KEY(drive_id) REFERENCES drives(id) ON DELETE CASCADE
+		);
+
 		-- Rewards store
 		CREATE TABLE IF NOT EXISTS rewards (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -223,6 +233,15 @@ export function initializeDatabase() {
 	if (!rewardCols.some(c => c.name === 'campaign_id')) {
 		try { db.exec('ALTER TABLE rewards ADD COLUMN campaign_id INTEGER'); } catch {}
 	}
+
+	// Drives migrations (add operational columns if missing)
+	const driveCols = db.prepare('PRAGMA table_info(drives)').all();
+	const ensureDriveCol = (name, def) => { if (!driveCols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE drives ADD COLUMN ${name} ${def}`); } catch {} } };
+	ensureDriveCol('qr_uid', 'TEXT UNIQUE');
+	ensureDriveCol('status', "TEXT NOT NULL DEFAULT 'reported'");
+	ensureDriveCol('count_recyclable', 'INTEGER NOT NULL DEFAULT 0');
+	ensureDriveCol('count_refurbishable', 'INTEGER NOT NULL DEFAULT 0');
+	ensureDriveCol('count_disposable', 'INTEGER NOT NULL DEFAULT 0');
 
 	// Seed categories
 	const categoryCount = db.prepare('SELECT COUNT(*) as c FROM categories').get().c;
