@@ -5,7 +5,8 @@ import Database from 'better-sqlite3';
 import dayjs from 'dayjs';
 import { generateRandomPassword, generateSalt, hashPassword } from './services/auth.js';
 
-const DATA_DIR = path.join(process.cwd(), 'backend', 'data');
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const DATA_DIR = path.join(__dirname, '..', 'data');
 const DB_PATH = path.join(DATA_DIR, 'ewaste.db');
 
 if (!fs.existsSync(DATA_DIR)) {
