@@ -12,6 +12,7 @@ import reportsRouter from './routes/reports.js';
 import settingsRouter from './routes/settings.js';
 import departmentsRouter from './routes/departments.js';
 import campaignsRouter from './routes/campaigns.js';
+import authRouter from './routes/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,6 +28,28 @@ initializeDatabase();
 
 app.get('/api/health', (req, res) => {
 	res.json({ status: 'ok', time: new Date().toISOString() });
+});
+
+app.use('/api/auth', authRouter);
+
+// Auth middleware for all other API routes
+app.use((req, res, next) => {
+	if (!req.path.startsWith('/api')) return next();
+	if (req.path.startsWith('/api/auth') || req.path === '/api/health') return next();
+	try {
+		const auth = req.get('authorization') || '';
+		const m = auth.match(/^Bearer\s+(.+)$/i);
+		if (!m) return res.status(401).json({ error: 'Unauthorized' });
+		const token = m[1];
+		const row = db.prepare("SELECT value FROM settings WHERE key='auth_token_secret'").get();
+		const { verifyToken } = await import('./services/auth.js');
+		const payload = verifyToken(token, row?.value || 'insecure');
+		if (!payload) return res.status(401).json({ error: 'Unauthorized' });
+		req.user = payload;
+		return next();
+	} catch (e) {
+		return res.status(401).json({ error: 'Unauthorized' });
+	}
 });
 
 app.use('/api/items', itemsRouter);
