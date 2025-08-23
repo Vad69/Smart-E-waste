@@ -13,6 +13,8 @@ import settingsRouter from './routes/settings.js';
 import departmentsRouter from './routes/departments.js';
 import campaignsRouter from './routes/campaigns.js';
 import authRouter from './routes/auth.js';
+import vendorPortalRouter from './routes/vendor_portal.js';
+import userPortalRouter from './routes/user_portal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +59,8 @@ function requireAdmin(req, res, next) {
 	next();
 }
 
-import vendorPortalRouter from './routes/vendor_portal.js';
+import drivesRouter from './routes/drives.js';
+app.use('/api/drives', requireAdmin, drivesRouter);
 
 // Admin-only APIs
 app.use('/api/items', requireAdmin, itemsRouter);
@@ -68,11 +71,12 @@ app.use('/api/reports', requireAdmin, reportsRouter);
 app.use('/api/settings', requireAdmin, settingsRouter);
 app.use('/api/departments', requireAdmin, departmentsRouter);
 app.use('/api/campaigns', requireAdmin, campaignsRouter);
-import drivesRouter from './routes/drives.js';
-app.use('/api/drives', requireAdmin, drivesRouter);
 
 // Vendor portal APIs
 app.use('/api/vendor', vendorPortalRouter);
+
+// User portal APIs
+app.use('/api/user', userPortalRouter);
 
 app.use((err, req, res, next) => {
 	console.error('Unhandled error:', err);

@@ -15,12 +15,26 @@ import Settings from './pages/Settings.jsx';
 import Login from './pages/Login.jsx';
 import './styles.css';
 import DriveDetail from './pages/DriveDetail.jsx';
+import UserApp from './pages/UserApp.jsx';
+import UserLogin from './pages/UserLogin.jsx';
+import UserDashboard from './pages/UserDashboard.jsx';
+import UserLeaderboard from './pages/UserLeaderboard.jsx';
+import UserSettings from './pages/UserSettings.jsx';
 
 function RequireAuth() {
 	const location = useLocation();
 	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
 	if (!token) {
 		return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+	}
+	return <Outlet />;
+}
+
+function RequireUserAuth() {
+	const location = useLocation();
+	const token = typeof window !== 'undefined' ? localStorage.getItem('auth_user_token') : null;
+	if (!token) {
+		return <Navigate to="/u/login" replace state={{ from: location.pathname }} />;
 	}
 	return <Outlet />;
 }
@@ -34,6 +48,22 @@ export function authFetch(input, init = {}) {
 
 const router = createBrowserRouter([
 	{ path: '/login', element: <Login /> },
+	{ path: '/u/login', element: <UserLogin /> },
+	{
+		path: '/u',
+		element: <RequireUserAuth />,
+		children: [
+			{
+				path: '/u',
+				element: <UserApp />,
+				children: [
+					{ index: true, element: <UserDashboard /> },
+					{ path: 'leaderboard', element: <UserLeaderboard /> },
+					{ path: 'settings', element: <UserSettings /> },
+				]
+			}
+		]
+	},
 	{
 		path: '/',
 		element: <RequireAuth />,
