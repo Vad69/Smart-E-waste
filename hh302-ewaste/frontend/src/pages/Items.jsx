@@ -130,7 +130,7 @@ export default function Items() {
 							<th>Category</th>
 							<th>Condition</th>
 							<th>Description</th>
-							<th>Weight</th>
+							<th>Weight in kg</th>
 							<th>QR</th>
 							<th>Actions</th>
 						</tr>
@@ -173,7 +173,7 @@ export default function Items() {
 							<th>Category</th>
 							<th>Condition</th>
 							<th>Description</th>
-							<th>Weight</th>
+							<th>Weight in kg</th>
 							<th>QR</th>
 						</tr>
 					</thead>

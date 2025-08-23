@@ -94,7 +94,7 @@ export default function Pickups() {
 							<th>ID</th>
 							<th>Name</th>
 							<th>Category</th>
-							<th>Weight</th>
+							<th>Weight in kg</th>
 						</tr>
 					</thead>
 					<tbody>
