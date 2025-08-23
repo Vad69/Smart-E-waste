@@ -5,6 +5,7 @@ import App from './App.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import Items from './pages/Items.jsx';
 import ItemDetail from './pages/ItemDetail.jsx';
+import DriveDetail from './pages/DriveDetail.jsx';
 import Vendors from './pages/Vendors.jsx';
 import Pickups from './pages/Pickups.jsx';
 import Reports from './pages/Reports.jsx';
@@ -22,6 +23,7 @@ const router = createBrowserRouter([
 			{ index: true, element: <Dashboard /> },
 			{ path: 'items', element: <Items /> },
 			{ path: 'items/:id', element: <ItemDetail /> },
+			{ path: 'drives/:id', element: <DriveDetail /> }
 			{ path: 'vendors', element: <Vendors /> },
 			{ path: 'pickups', element: <Pickups /> },
 			{ path: 'reports', element: <Reports /> },
