@@ -5,7 +5,10 @@ export default function Departments() {
 	const [name, setName] = useState('');
 
 	function load() {
-		fetch('/api/departments').then(r => r.json()).then(d => setDepartments(d.departments));
+		fetch('/api/departments')
+			.then(r => r.json())
+			.then(d => setDepartments(Array.isArray(d?.departments) ? d.departments : []))
+			.catch(() => setDepartments([]));
 	}
 	useEffect(() => { load(); }, []);
 

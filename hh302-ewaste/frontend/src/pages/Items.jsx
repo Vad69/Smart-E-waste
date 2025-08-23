@@ -24,21 +24,21 @@ export default function Items() {
 		if (department) params.set('department_id', department);
 		if (category) params.set('category_key', category);
 		fetch('/api/items?' + params.toString()).then(r => r.json()).then(d => {
-			setItems(d.items);
-			setTotal(d.total);
-		});
+			setItems(Array.isArray(d?.items) ? d.items : []);
+			setTotal(Number(d?.total) || 0);
+		}).catch(() => { setItems([]); setTotal(0); });
 	}
 
 	function loadDrives() {
 		const params = new URLSearchParams();
 		if (q) params.set('q', q);
 		fetch('/api/drives?' + params.toString()).then(r => r.json()).then(d => {
-			setDrives(d.drives || []);
-		});
+			setDrives(Array.isArray(d?.drives) ? d.drives : []);
+		}).catch(() => setDrives([]));
 	}
 
 	useEffect(() => { load(); }, [q, status, department, category]);
-	useEffect(() => { fetch('/api/departments').then(r => r.json()).then(d => setDepartments(d.departments)); }, []);
+	useEffect(() => { fetch('/api/departments').then(r => r.json()).then(d => setDepartments(Array.isArray(d?.departments) ? d.departments : [])).catch(() => setDepartments([])); }, []);
 	useEffect(() => { if (viewMode === 'drives') loadDrives(); }, [viewMode, q]);
 
 	function submit(e) {
@@ -107,8 +107,8 @@ export default function Items() {
 		load();
 	}
 
-	const openItems = useMemo(() => items.filter(i => i.status !== 'recycled' && i.status !== 'refurbished' && i.status !== 'disposed'), [items]);
-	const completedItems = useMemo(() => items.filter(i => i.status === 'recycled' || i.status === 'refurbished' || i.status === 'disposed'), [items]);
+	const openItems = useMemo(() => (items || []).filter(i => i.status !== 'recycled' && i.status !== 'refurbished' && i.status !== 'disposed'), [items]);
+	const completedItems = useMemo(() => (items || []).filter(i => i.status === 'recycled' || i.status === 'refurbished' || i.status === 'disposed'), [items]);
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
@@ -131,7 +131,7 @@ export default function Items() {
 						<input className="input" placeholder="Description" value={form.description} onChange={e => setForm(v => ({ ...v, description: e.target.value }))} />
 						<select value={form.department_id} onChange={e => setForm(v => ({ ...v, department_id: e.target.value }))}>
 							<option value="">Department</option>
-							{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+							{(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
 						</select>
 						<select value={form.category_key} onChange={e => setForm(v => ({ ...v, category_key: e.target.value }))}>
 							<option value="">Category (auto)</option>
@@ -158,7 +158,7 @@ export default function Items() {
 						<input className="input" placeholder="Description" value={driveForm.description} onChange={e => setDriveForm(v => ({ ...v, description: e.target.value }))} />
 						<select value={driveForm.department_id} onChange={e => setDriveForm(v => ({ ...v, department_id: e.target.value }))}>
 							<option value="">Department (optional)</option>
-							{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+							{(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
 						</select>
 						<input className="input" placeholder="Recyclable count" value={driveForm.recyclable} onChange={e => setDriveForm(v => ({ ...v, recyclable: e.target.value }))} />
 						<input className="input" placeholder="Refurbishable count" value={driveForm.reusable} onChange={e => setDriveForm(v => ({ ...v, reusable: e.target.value }))} />
@@ -184,7 +184,7 @@ export default function Items() {
 							</select>
 							<select value={department} onChange={e => setDepartment(e.target.value)}>
 								<option value="">Department</option>
-								{departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+								{(departments || []).map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
 							</select>
 							<select value={category} onChange={e => setCategory(e.target.value)}>
 								<option value="">Category</option>
@@ -208,7 +208,7 @@ export default function Items() {
 								</tr>
 							</thead>
 							<tbody>
-								{openItems.map(i => (
+								{(openItems || []).map(i => (
 									<tr key={i.id}>
 										<td className="mono"><Link to={`/items/${i.id}`}>{i.id}</Link></td>
 										<td>{i.name}</td>
@@ -250,7 +250,7 @@ export default function Items() {
 								</tr>
 							</thead>
 							<tbody>
-								{completedItems.map(i => (
+								{(completedItems || []).map(i => (
 									<tr key={i.id}>
 										<td className="mono"><Link to={`/items/${i.id}`}>{i.id}</Link></td>
 										<td>{i.name}</td>
@@ -285,7 +285,7 @@ export default function Items() {
 							</tr>
 						</thead>
 						<tbody>
-							{drives.map(d => (
+							{(drives || []).map(d => (
 								<tr key={d.id}>
 									<td className="mono"><Link to={`/drives/${d.id}`}>{d.id}</Link></td>
 									<td>{d.title}</td>
