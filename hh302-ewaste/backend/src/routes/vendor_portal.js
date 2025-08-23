@@ -1,6 +1,9 @@
 import express from 'express';
 import { db } from '../db.js';
 import { verifyPassword, generateSalt, hashPassword } from '../services/auth.js';
+import PDFDocument from 'pdfkit';
+import dayjs from 'dayjs';
+import { formatInTz, nowInTz, DEFAULT_TZ } from '../time.js';
 
 const router = express.Router();
 
@@ -94,6 +97,124 @@ router.post('/change-password', requireVendor, (req, res) => {
 	const hash = hashPassword(new_password, salt);
 	db.prepare('UPDATE vendors SET password_salt = ?, password_hash = ?, password_plain_last = NULL WHERE id = ?').run(salt, hash, req.user.vendor_id);
 	res.json({ ok: true });
+});
+
+router.get('/cpcb/form6.pdf', requireVendor, (req, res) => {
+	const { from, to } = req.query;
+	const fromDate = from ? dayjs(from) : dayjs().subtract(7, 'day');
+	const toDate = to ? dayjs(to) : dayjs();
+	const fromIso = fromDate.toISOString();
+	const toIso = toDate.toISOString();
+
+	const settingsRows = db.prepare('SELECT key, value FROM settings').all();
+	const settings = Object.fromEntries(settingsRows.map(r => [r.key, r.value]));
+
+	const vendor = db.prepare('SELECT id, name, address, authorization_no, gst_no FROM vendors WHERE id = ?').get(req.user.vendor_id);
+	if (!vendor) return res.status(404).json({ error: 'Vendor not found' });
+
+	const pickups = db.prepare(`
+		SELECT p.*
+		FROM pickups p
+		WHERE p.vendor_id = ? AND p.scheduled_date BETWEEN ? AND ?
+		ORDER BY p.scheduled_date ASC
+	`).all(vendor.id, fromIso, toIso);
+
+	// Vendor-handled processed counts and weights within period
+	const recycledCount = db.prepare(`
+		SELECT COUNT(*) as c FROM items i
+		WHERE i.status = 'recycled' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).c;
+	const refurbishedCount = db.prepare(`
+		SELECT COUNT(*) as c FROM items i
+		WHERE i.status = 'refurbished' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).c;
+	const disposedCount = db.prepare(`
+		SELECT COUNT(*) as c FROM items i
+		WHERE i.status = 'disposed' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).c;
+
+	const recycledWeight = db.prepare(`
+		SELECT IFNULL(SUM(i.weight_kg),0) as w FROM items i
+		WHERE i.status = 'recycled' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).w;
+	const refurbishedWeight = db.prepare(`
+		SELECT IFNULL(SUM(i.weight_kg),0) as w FROM items i
+		WHERE i.status = 'refurbished' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).w;
+	const disposedWeight = db.prepare(`
+		SELECT IFNULL(SUM(i.weight_kg),0) as w FROM items i
+		WHERE i.status = 'disposed' AND i.updated_at BETWEEN ? AND ? AND EXISTS (
+			SELECT 1 FROM pickup_items pi JOIN pickups p ON p.id = pi.pickup_id
+			WHERE pi.item_id = i.id AND p.vendor_id = ?
+		)
+	`).get(fromIso, toIso, vendor.id).w;
+
+	res.setHeader('Content-Type', 'application/pdf');
+	res.setHeader('Content-Disposition', `inline; filename="vendor_${vendor.id}_form6_${fromDate.format('YYYYMMDD')}_${toDate.format('YYYYMMDD')}.pdf"`);
+
+	const doc = new PDFDocument({ margin: 36 });
+	doc.pipe(res);
+
+	doc.fontSize(16).text('FORM 6 — Vendor Manifest Summary (E-Waste)', { align: 'center' });
+	doc.moveDown(0.5);
+	doc.fontSize(10).text(`Period: ${fromDate.format('YYYY-MM-DD')} to ${toDate.format('YYYY-MM-DD')} | TZ: ${DEFAULT_TZ} | Generated: ${nowInTz()}`, { align: 'center' });
+	doc.moveDown(1);
+
+	doc.fontSize(12).text('Facility Details', { underline: true });
+	doc.fontSize(10).text(`Name: ${settings.facility_name || ''}`);
+	doc.text(`Address: ${settings.facility_address || ''}`);
+	doc.text(`Authorization No: ${settings.facility_authorization_no || ''}`);
+	doc.moveDown(0.5);
+
+	doc.fontSize(12).text('Vendor Details', { underline: true });
+	doc.fontSize(10).text(`Name: ${vendor.name}`);
+	doc.text(`Address: ${vendor.address || '—'}`);
+	doc.text(`Authorization No: ${vendor.authorization_no || '—'}`);
+	doc.text(`GST: ${vendor.gst_no || '—'}`);
+	doc.moveDown(0.5);
+
+	doc.fontSize(12).text('Processed Items (Selected Period)', { underline: true });
+	doc.fontSize(10).text(`Recycled: ${recycledCount} | Refurbished: ${refurbishedCount} | Disposed: ${disposedCount}`);
+	doc.text(`Weights: Recycled ${Number(recycledWeight).toFixed(2)} kg | Refurbished ${Number(refurbishedWeight).toFixed(2)} kg | Disposed ${Number(disposedWeight).toFixed(2)} kg`);
+	doc.moveDown(0.5);
+
+	if (pickups.length === 0) {
+		doc.text('No pickups for this vendor in the selected period.');
+		doc.end();
+		return;
+	}
+
+	pickups.forEach(p => {
+		doc.fontSize(12).text(`Pickup #${p.id}`);
+		doc.fontSize(10).text(`Scheduled: ${p.scheduled_date}`);
+		if (p.manifest_no || p.transporter_name || p.vehicle_no) {
+			doc.text(`Manifest: ${p.manifest_no || '—'} | Transporter: ${p.transporter_name || '—'} | Vehicle: ${p.vehicle_no || '—'} | Contact: ${p.transporter_contact || '—'}`);
+		}
+		const items = db.prepare('SELECT i.id, i.name, i.weight_kg, i.category_key, i.status FROM items i JOIN pickup_items pi ON i.id = pi.item_id WHERE pi.pickup_id = ? ORDER BY i.id ASC').all(p.id);
+		if (items.length === 0) {
+			doc.text('  No items');
+		} else {
+			items.forEach(it => doc.text(`  - #${it.id} ${it.name} | ${it.category_key} | ${it.weight_kg || 0} kg | ${it.status}`));
+		}
+		doc.moveDown(0.5);
+	});
+
+	doc.end();
 });
 
 export default router;

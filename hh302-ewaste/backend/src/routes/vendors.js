@@ -76,14 +76,17 @@ router.post('/', (req, res) => {
 		candidate = `${base}${suffix}`;
 	}
 	const username = candidate;
-	const { generateRandomPassword, generateSalt, hashPassword } = require('../services/auth.js');
-	const password = generateRandomPassword(10);
-	const salt = generateSalt(16);
-	const hash = hashPassword(password, salt);
-	const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, password_salt, password_hash, password_plain_last) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-		.run(name, contact_name, phone, email, address, type, license_no, now, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, salt, hash, password);
-	const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(info.lastInsertRowid);
-	res.status(201).json({ vendor: mapVendor(row), credentials: { username, password } });
+	import('../services/auth.js').then(({ generateRandomPassword, generateSalt, hashPassword }) => {
+		const password = generateRandomPassword(10);
+		const salt = generateSalt(16);
+		const hash = hashPassword(password, salt);
+		const info = db.prepare('INSERT INTO vendors (name, contact_name, phone, email, address, type, license_no, created_at, active, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, password_salt, password_hash, password_plain_last) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+			.run(name, contact_name, phone, email, address, type, license_no, now, authorization_no, auth_valid_from, auth_valid_to, gst_no, capacity_tpm, categories_handled, username, salt, hash, password);
+		const row = db.prepare('SELECT * FROM vendors WHERE id = ?').get(info.lastInsertRowid);
+		res.status(201).json({ vendor: mapVendor(row), credentials: { username, password } });
+	}).catch(e => {
+		res.status(500).json({ error: 'Failed to generate credentials' });
+	});
 });
 
 router.get('/:id', (req, res) => {
@@ -124,12 +127,15 @@ router.get('/:id/credentials', (req, res) => {
 router.post('/:id/reset-password', (req, res) => {
 	const existing = db.prepare('SELECT * FROM vendors WHERE id = ?').get(req.params.id);
 	if (!existing) return res.status(404).json({ error: 'Vendor not found' });
-	const { generateRandomPassword, generateSalt, hashPassword } = require('../services/auth.js');
-	const password = generateRandomPassword(10);
-	const salt = generateSalt(16);
-	const hash = hashPassword(password, salt);
-	db.prepare('UPDATE vendors SET password_salt = ?, password_hash = ?, password_plain_last = ? WHERE id = ?').run(salt, hash, password, req.params.id);
-	res.json({ username: existing.username, password });
+	import('../services/auth.js').then(({ generateRandomPassword, generateSalt, hashPassword }) => {
+		const password = generateRandomPassword(10);
+		const salt = generateSalt(16);
+		const hash = hashPassword(password, salt);
+		db.prepare('UPDATE vendors SET password_salt = ?, password_hash = ?, password_plain_last = ? WHERE id = ?').run(salt, hash, password, req.params.id);
+		res.json({ username: existing.username, password });
+	}).catch(e => {
+		res.status(500).json({ error: 'Failed to reset password' });
+	});
 });
 
 router.get('/:id/items', (req, res) => {
