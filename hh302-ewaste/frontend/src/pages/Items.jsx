@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { authFetch } from '../main.jsx';
 
 export default function Items() {
 	const [items, setItems] = useState([]);
@@ -23,7 +24,7 @@ export default function Items() {
 		if (status) params.set('status', status);
 		if (department) params.set('department_id', department);
 		if (category) params.set('category_key', category);
-		fetch('/api/items?' + params.toString()).then(r => r.json()).then(d => {
+		authFetch('/api/items?' + params.toString()).then(r => r.json()).then(d => {
 			setItems(Array.isArray(d?.items) ? d.items : []);
 			setTotal(Number(d?.total) || 0);
 		}).catch(() => { setItems([]); setTotal(0); });
@@ -32,13 +33,13 @@ export default function Items() {
 	function loadDrives() {
 		const params = new URLSearchParams();
 		if (q) params.set('q', q);
-		fetch('/api/drives?' + params.toString()).then(r => r.json()).then(d => {
+		authFetch('/api/drives?' + params.toString()).then(r => r.json()).then(d => {
 			setDrives(Array.isArray(d?.drives) ? d.drives : []);
 		}).catch(() => setDrives([]));
 	}
 
 	useEffect(() => { load(); }, [q, status, department, category]);
-	useEffect(() => { fetch('/api/departments').then(r => r.json()).then(d => setDepartments(Array.isArray(d?.departments) ? d.departments : [])).catch(() => setDepartments([])); }, []);
+	useEffect(() => { authFetch('/api/departments').then(r => r.json()).then(d => setDepartments(Array.isArray(d?.departments) ? d.departments : [])).catch(() => setDepartments([])); }, []);
 	useEffect(() => { if (viewMode === 'drives') loadDrives(); }, [viewMode, q]);
 
 	function submit(e) {
@@ -51,7 +52,7 @@ export default function Items() {
 			reported_time: form.reported_time || undefined,
 			purchase_date: form.purchase_date || undefined
 		};
-		fetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		authFetch('/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
 				setForm({ name: '', description: '', department_id: '', condition: '', weight_kg: '', category_key: '', reported_time: '', purchase_date: '' });
@@ -72,7 +73,7 @@ export default function Items() {
 			},
 			item_name_prefix: driveForm.item_name_prefix || ''
 		};
-		fetch('/api/drives', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		authFetch('/api/drives', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json())
 			.then(() => {
 				setDriveForm({ title: '', description: '', department_id: '', recyclable: '', reusable: '', hazardous: '', item_name_prefix: '' });
@@ -88,7 +89,7 @@ export default function Items() {
 			if (!manual) return;
 			body.manual_time = manual;
 		}
-		const res = await fetch(`/api/items/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+		const res = await authFetch(`/api/items/${id}/status`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({}));
 			return alert(err.error || 'Failed to update status');
@@ -99,7 +100,7 @@ export default function Items() {
 
 	async function deleteItem(id) {
 		if (!window.confirm(`Delete item #${id}? This cannot be undone.`)) return;
-		const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+		const res = await authFetch(`/api/items/${id}`, { method: 'DELETE' });
 		if (!res.ok) {
 			const err = await res.json().catch(() => ({}));
 			return alert(err.error || 'Failed to delete');
@@ -290,14 +291,4 @@ export default function Items() {
 									<td className="mono"><Link to={`/drives/${d.id}`}>{d.id}</Link></td>
 									<td>{d.title}</td>
 									<td>{d.stats?.total ?? 0}</td>
-									<td>{`Rcy: ${d.stats?.recyclable ?? 0} | Ref: ${d.stats?.reusable ?? 0} | Dis: ${d.stats?.hazardous ?? 0}`}</td>
-									<td><a href={`/api/drives/${d.id}/label.svg?size=600`} target="_blank" rel="noreferrer">Label</a></td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			)}
-		</div>
-	);
-}
+									<td>{`

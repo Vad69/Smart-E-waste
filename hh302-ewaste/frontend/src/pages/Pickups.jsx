@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { authFetch } from '../main.jsx';
 
 const COLORS = { reported: '#94a3b8', scheduled: '#0ea5e9', picked_up: '#f59e0b', recycled: '#10b981', refurbished: '#8b5cf6', disposed: '#ef4444' };
 
@@ -39,13 +40,13 @@ export default function Pickups() {
 	const [pickups, setPickups] = useState([]);
 
 	function loadSuggest() {
-		fetch(`/api/pickups/suggest?vendor_type=${vendorType}`)
+		authFetch(`/api/pickups/suggest?vendor_type=${vendorType}`)
 			.then(r => r.json())
 			.then(d => setSuggested({ suggested_items: Array.isArray(d?.suggested_items) ? d.suggested_items : [], vendors: Array.isArray(d?.vendors) ? d.vendors : [] }))
 			.catch(() => setSuggested({ suggested_items: [], vendors: [] }));
 	}
 	function loadPickups() {
-		fetch('/api/pickups')
+		authFetch('/api/pickups')
 			.then(r => r.json())
 			.then(d => setPickups(Array.isArray(d?.pickups) ? d.pickups : []))
 			.catch(() => setPickups([]));
@@ -60,7 +61,7 @@ export default function Pickups() {
 	function schedule(e) {
 		e.preventDefault();
 		const payload = { vendor_id: Number(selectedVendor), scheduled_date: date, item_ids: selectedItems, ...manifest };
-		fetch('/api/pickups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		authFetch('/api/pickups', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(r => r.json()).then(() => { setSelectedItems([]); setDate(''); setManifest({ manifest_no: '', transporter_name: '', vehicle_no: '', transporter_contact: '' }); loadPickups(); });
 	}
 
