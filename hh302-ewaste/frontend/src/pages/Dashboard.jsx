@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { authFetch } from '../main.jsx';
 import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, Brush } from 'recharts';
 
 export default function Dashboard() {
@@ -30,9 +31,9 @@ export default function Dashboard() {
 
 	async function fetchMonthly() {
 		const [t, s, i] = await Promise.all([
-			fetch(`/api/analytics/trends?granularity=month`).then(r => r.json()).catch(() => ({})),
-			fetch(`/api/analytics/status-trends?granularity=month`).then(r => r.json()).catch(() => ({})),
-			fetch(`/api/analytics/impact-trends?granularity=month`).then(r => r.json()).catch(() => ({}))
+			authFetch(`/api/analytics/trends?granularity=month`).then(r => r.json()).catch(() => ({})),
+			authFetch(`/api/analytics/status-trends?granularity=month`).then(r => r.json()).catch(() => ({})),
+			authFetch(`/api/analytics/impact-trends?granularity=month`).then(r => r.json()).catch(() => ({}))
 		]);
 		setMonthlyTrends(t.monthly || []);
 		setMonthlyStatusTrends(s.monthly || []);
@@ -43,9 +44,9 @@ export default function Dashboard() {
 		const { from, to } = monthRange(selectedMonth);
 		const qs = `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
 		const [t, s, i] = await Promise.all([
-			fetch(`/api/analytics/trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
-			fetch(`/api/analytics/status-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
-			fetch(`/api/analytics/impact-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({}))
+			authFetch(`/api/analytics/trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
+			authFetch(`/api/analytics/status-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({})),
+			authFetch(`/api/analytics/impact-trends?granularity=day&${qs}`).then(r => r.json()).catch(() => ({}))
 		]);
 		setDailyTrends(t.daily || []);
 		setDailyStatusTrends(s.daily || []);
@@ -54,12 +55,12 @@ export default function Dashboard() {
 
 	// Initial load
 	useEffect(() => {
-		fetch('/api/analytics/summary').then(r => r.json()).then(setSummary);
+		authFetch('/api/analytics/summary').then(r => r.json()).then(setSummary).catch(() => setSummary(null));
 		fetchMonthly();
-		fetch('/api/analytics/segments').then(r => r.json()).then(setSegments);
-		fetch('/api/analytics/impact').then(r => r.json()).then(setImpact);
-		fetch('/api/analytics/sustainability').then(r => r.json()).then(setSustainability);
-		fetch('/api/campaigns').then(r => r.json()).then(d => setCampaignsCount(Array.isArray(d.campaigns) ? d.campaigns.length : 0));
+		authFetch('/api/analytics/segments').then(r => r.json()).then(setSegments).catch(() => setSegments({ byDept: [], byCategory: [] }));
+		authFetch('/api/analytics/impact').then(r => r.json()).then(setImpact).catch(() => setImpact(null));
+		authFetch('/api/analytics/sustainability').then(r => r.json()).then(setSustainability).catch(() => setSustainability(null));
+		authFetch('/api/campaigns').then(r => r.json()).then(d => setCampaignsCount(Array.isArray(d.campaigns) ? d.campaigns.length : 0)).catch(() => setCampaignsCount(0));
 	}, []);
 
 	// Refetch monthly whenever toggled back to Month view
