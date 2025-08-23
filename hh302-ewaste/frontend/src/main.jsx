@@ -22,6 +22,7 @@ import UserLeaderboard from './pages/UserLeaderboard.jsx';
 import UserSettings from './pages/UserSettings.jsx';
 import VendorApp from './pages/VendorApp.jsx';
 import VendorDashboard from './pages/VendorDashboard.jsx';
+import ErrorBoundary from './pages/ErrorBoundary.jsx';
 
 function RequireAuth() {
 	const location = useLocation();
@@ -115,6 +116,8 @@ const router = createBrowserRouter([
 
 createRoot(document.getElementById('root')).render(
 	<React.StrictMode>
-		<RouterProvider router={router} />
+		<ErrorBoundary>
+			<RouterProvider router={router} />
+		</ErrorBoundary>
 	</React.StrictMode>
 );
