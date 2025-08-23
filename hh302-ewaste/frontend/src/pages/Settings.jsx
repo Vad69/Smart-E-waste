@@ -7,11 +7,6 @@ export default function Settings() {
     const [locked, setLocked] = useState(true);
     const [justSaved, setJustSaved] = useState(false);
 
-    const [currentPassword, setCurrentPassword] = useState('');
-    const [newPassword, setNewPassword] = useState('');
-    const [changing, setChanging] = useState(false);
-    const [changeMsg, setChangeMsg] = useState('');
-
     function load() {
         authFetch('/api/settings').then(r => r.json()).then(d => {
             setS(prev => ({ ...prev, ...(d.settings || {}) }));
@@ -31,28 +26,6 @@ export default function Settings() {
                 setJustSaved(true);
                 setTimeout(() => setJustSaved(false), 2000);
             });
-    }
-
-    async function changePassword(e) {
-        e.preventDefault();
-        setChangeMsg('');
-        setChanging(true);
-        try {
-            const r = await authFetch('/api/settings/change-password', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ currentPassword, newPassword })
-            });
-            const d = await r.json();
-            if (!r.ok || !d.ok) throw new Error(d.error || 'Failed to change password');
-            setChangeMsg('Password changed successfully');
-            setCurrentPassword('');
-            setNewPassword('');
-        } catch (err) {
-            setChangeMsg(err.message || 'Failed to change password');
-        } finally {
-            setChanging(false);
-        }
     }
 
     return (
@@ -82,16 +55,6 @@ export default function Settings() {
             )}
 
             <div className="divider" style={{ margin: '16px 0' }} />
-
-            <h3>Change Admin Password</h3>
-            {changeMsg && <div className="badge" style={{ marginBottom: 8 }}>{changeMsg}</div>}
-            <form onSubmit={changePassword} className="grid" style={{ gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                <input className="input" placeholder="Current Password" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} disabled={changing} />
-                <input className="input" placeholder="New Password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} disabled={changing} />
-                <div style={{ gridColumn: '1 / span 2' }}>
-                    <button className="btn" type="submit" disabled={changing}>{changing ? 'Changing…' : 'Change Password'}</button>
-                </div>
-            </form>
         </div>
     );
 }
