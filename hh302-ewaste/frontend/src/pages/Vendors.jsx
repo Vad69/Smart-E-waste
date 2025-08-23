@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { authFetch } from '../main';
 
 export default function Vendors() {
 	const [vendors, setVendors] = useState([]);
@@ -6,15 +7,26 @@ export default function Vendors() {
 	const [typeFilter, setTypeFilter] = useState('');
 	const [includeInactive, setIncludeInactive] = useState(false);
 	const [form, setForm] = useState({ name: '', type: 'recycler', license_no: '', authorization_no: '', auth_valid_from: '', auth_valid_to: '', gst_no: '', capacity_tpm: '', categories_handled: '', contact_name: '', phone: '', email: '', address: '' });
+	const [loading, setLoading] = useState(false);
+	const [error, setError] = useState(null);
 
 	function load() {
+		setLoading(true);
+		setError(null);
 		const params = new URLSearchParams();
 		if (typeFilter) params.set('type', typeFilter);
 		if (includeInactive) params.set('include_inactive', '1');
-		fetch('/api/vendors?' + params.toString())
-			.then(r => r.json())
+		authFetch('/api/vendors?' + params.toString())
+			.then(async r => {
+				if (!r.ok) {
+					const err = await r.json().catch(() => ({}));
+					throw new Error(err?.error || 'Failed to load vendors');
+				}
+				return r.json();
+			})
 			.then(d => setVendors((d && Array.isArray(d.vendors)) ? d.vendors : []))
-			.catch(() => setVendors([]));
+			.catch(e => { setError(e.message || 'Failed to load vendors'); setVendors([]); })
+			.finally(() => setLoading(false));
 	}
 	useEffect(() => { load(); }, [typeFilter, includeInactive]);
 
@@ -22,7 +34,7 @@ export default function Vendors() {
 		e.preventDefault();
 		const capacity = form.capacity_tpm === '' ? null : Number(form.capacity_tpm);
 		const payload = { ...form, capacity_tpm: capacity };
-		fetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+		authFetch('/api/vendors', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
 			.then(async r => {
 				if (!r.ok) {
 					const err = await r.json().catch(() => ({}));
@@ -36,8 +48,8 @@ export default function Vendors() {
 			});
 	}
 
-	function removeVendor(id) { fetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
-	function restoreVendor(id) { fetch(`/api/vendors/${id}/restore`, { method: 'POST' }).then(load); }
+	function removeVendor(id) { authFetch(`/api/vendors/${id}`, { method: 'DELETE' }).then(load); }
+	function restoreVendor(id) { authFetch(`/api/vendors/${id}/restore`, { method: 'POST' }).then(load); }
 
 	return (
 		<div className="grid" style={{ gap: 16 }}>
@@ -73,6 +85,9 @@ export default function Vendors() {
 						<input type="checkbox" checked={includeInactive} onChange={e => setIncludeInactive(e.target.checked)} /> Include inactive
 					</label>
 				</div>
+				{error ? (
+					<div className="error">{error}</div>
+				) : null}
 				<table className="table">
 					<thead>
 						<tr>
@@ -93,7 +108,9 @@ export default function Vendors() {
 						</tr>
 					</thead>
 					<tbody>
-						{(vendors || []).map(v => (
+						{loading ? (
+							<tr><td colSpan="14">Loading…</td></tr>
+						) : (vendors || []).map(v => (
 							<tr key={v.id}>
 								<td>{v.name}</td>
 								<td>{v.type}</td>
