@@ -154,8 +154,6 @@ router.get('/compliance.pdf', (req, res) => {
 	doc.end();
 });
 
-export default router;
-
 // CPCB Form-6 (Simplified manifest PDF for pickups within range)
 router.get('/form6.pdf', (req, res) => {
     const { from, to } = req.query;
@@ -175,6 +173,41 @@ router.get('/form6.pdf', (req, res) => {
         ORDER BY p.scheduled_date ASC
     `).all(fromIso, toIso);
 
+    // Sustainability data within period
+    const totalReportedItems = db.prepare(`SELECT COUNT(*) as c FROM items WHERE created_at BETWEEN ? AND ?`).get(fromIso, toIso).c;
+    const recycledCount = db.prepare(`SELECT COUNT(*) as c FROM items WHERE status = 'recycled' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).c;
+    const refurbishedCount = db.prepare(`SELECT COUNT(*) as c FROM items WHERE status = 'refurbished' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).c;
+    const disposedCount = db.prepare(`SELECT COUNT(*) as c FROM items WHERE status = 'disposed' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).c;
+
+    const recycledWeight = db.prepare(`SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'recycled' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).w;
+    const refurbishedWeight = db.prepare(`SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'refurbished' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).w;
+    const disposedWeight = db.prepare(`SELECT IFNULL(SUM(weight_kg),0) as w FROM items WHERE status = 'disposed' AND updated_at BETWEEN ? AND ?`).get(fromIso, toIso).w;
+
+    const FACTORS = {
+        recycled:    { co2e: 1.8, greenhouse: 2.0,  acidification: 0.012, eutrophication: 0.003, heavyMetals: 2.0 },
+        refurbished: { co2e: 0.8, greenhouse: 1.0,  acidification: 0.010, eutrophication: 0.002, heavyMetals: 8.0 },
+        disposed:    { co2e: 8.0, greenhouse: 10.0, acidification: 0.020, eutrophication: 0.005, heavyMetals: 3.0 },
+    };
+    function metricsFor(weightKg, f) {
+        return {
+            co2e: weightKg * f.co2e,
+            greenhouse: weightKg * f.greenhouse,
+            acidification: weightKg * f.acidification,
+            eutrophication: weightKg * f.eutrophication,
+            heavyMetals: weightKg * f.heavyMetals,
+        };
+    }
+    const mRecycled = metricsFor(recycledWeight, FACTORS.recycled);
+    const mRefurbished = metricsFor(refurbishedWeight, FACTORS.refurbished);
+    const mDisposed = metricsFor(disposedWeight, FACTORS.disposed);
+    const mTotals = {
+        co2e: mRecycled.co2e + mRefurbished.co2e + mDisposed.co2e,
+        greenhouse: mRecycled.greenhouse + mRefurbished.greenhouse + mDisposed.greenhouse,
+        acidification: mRecycled.acidification + mRefurbished.acidification + mDisposed.acidification,
+        eutrophication: mRecycled.eutrophication + mRefurbished.eutrophication + mDisposed.eutrophication,
+        heavyMetals: mRecycled.heavyMetals + mRefurbished.heavyMetals + mDisposed.heavyMetals,
+    };
+
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="form6_${fromDate.format('YYYYMMDD')}_${toDate.format('YYYYMMDD')}.pdf"`);
 
@@ -191,6 +224,19 @@ router.get('/form6.pdf', (req, res) => {
     doc.text(`Address: ${settings.facility_address || ''}`);
     doc.text(`Authorization No: ${settings.facility_authorization_no || ''}`);
     doc.moveDown(0.5);
+
+    // Sustainability Impact Summary (selected period)
+    doc.fontSize(12).text('Sustainability Impact (Selected Period)', { underline: true });
+    doc.fontSize(10).text(`Total items reported: ${totalReportedItems}`);
+    doc.text(`Processed items — Recycled ${recycledCount} | Refurbished ${refurbishedCount} | Disposed ${disposedCount}`);
+    doc.text(`Totals: CO2e prevented ${mTotals.co2e.toFixed(2)} kg | Greenhouse gases prevented ${mTotals.greenhouse.toFixed(2)} kg`);
+    doc.text(`        Acidification avoided ${mTotals.acidification.toFixed(3)} kg | Eutrophication avoided ${mTotals.eutrophication.toFixed(3)} kg | Heavy metals prevented ${mTotals.heavyMetals.toFixed(2)} kg`);
+    doc.moveDown(0.25);
+    doc.text('Breakdown by stream:', { continued: false });
+    doc.text(`  - Recycled: CO2e ${mRecycled.co2e.toFixed(2)} kg | GH ${mRecycled.greenhouse.toFixed(2)} kg | Acid ${mRecycled.acidification.toFixed(3)} kg | Eutro ${mRecycled.eutrophication.toFixed(3)} kg | Heavy metals ${mRecycled.heavyMetals.toFixed(2)} kg`);
+    doc.text(`  - Refurbished: CO2e ${mRefurbished.co2e.toFixed(2)} kg | GH ${mRefurbished.greenhouse.toFixed(2)} kg | Acid ${mRefurbished.acidification.toFixed(3)} kg | Eutro ${mRefurbished.eutrophication.toFixed(3)} kg | Heavy metals ${mRefurbished.heavyMetals.toFixed(2)} kg`);
+    doc.text(`  - Disposed: CO2e ${mDisposed.co2e.toFixed(2)} kg | GH ${mDisposed.greenhouse.toFixed(2)} kg | Acid ${mDisposed.acidification.toFixed(3)} kg | Eutro ${mDisposed.eutrophication.toFixed(3)} kg | Heavy metals ${mDisposed.heavyMetals.toFixed(2)} kg`);
+    doc.moveDown(0.75);
 
     if (pickups.length === 0) {
         doc.text('No pickups in the selected period.');
@@ -222,3 +268,5 @@ router.get('/form6.pdf', (req, res) => {
 
     doc.end();
 });
+
+export default router;
