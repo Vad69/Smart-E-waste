@@ -284,7 +284,6 @@ export function initializeDatabase() {
 		// Ensure admin credentials and token secret
 		const hasHash = db.prepare("SELECT value FROM settings WHERE key='admin_password_hash'").get();
 		if (!hasHash) {
-			const { generateRandomPassword, generateSalt, hashPassword } = await import('./services/auth.js');
 			const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
 			const password = generateRandomPassword(12);
 			const salt = generateSalt(16);
