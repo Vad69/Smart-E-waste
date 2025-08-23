@@ -36,6 +36,24 @@ function ensureActiveColumn() {
 	} catch {}
 }
 
+function ensureVendorCredentialColumns() {
+	try {
+		const cols = db.prepare('PRAGMA table_info(vendors)').all();
+		const ensureCol = (name, def) => { if (!cols.some(c => c.name === name)) { try { db.exec(`ALTER TABLE vendors ADD COLUMN ${name} ${def}`); } catch {} } };
+		// Extended vendor fields that may be missing on older DBs
+		ensureCol('authorization_no', 'TEXT');
+		ensureCol('auth_valid_from', 'TEXT');
+		ensureCol('auth_valid_to', 'TEXT');
+		ensureCol('gst_no', 'TEXT');
+		ensureCol('capacity_tpm', 'REAL');
+		ensureCol('categories_handled', 'TEXT');
+		ensureCol('username', 'TEXT');
+		ensureCol('password_salt', 'TEXT');
+		ensureCol('password_hash', 'TEXT');
+		ensureCol('password_plain_last', 'TEXT');
+	} catch {}
+}
+
 router.get('/types', (req, res) => {
 	res.json({ types: VENDOR_TYPES });
 });
@@ -64,6 +82,7 @@ router.post('/', (req, res) => {
 	if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
 	if (!VENDOR_TYPES.includes(type)) return res.status(400).json({ error: 'invalid type' });
 	ensureActiveColumn();
+	ensureVendorCredentialColumns();
 	// Generate credentials
 	function slugify(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 12); }
 	let base = slugify(name) || 'vendor';
