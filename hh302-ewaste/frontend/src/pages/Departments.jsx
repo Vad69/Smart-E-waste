@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { authFetch } from '../main';
 
 export default function Departments() {
 	const [departments, setDepartments] = useState([]);
 	const [name, setName] = useState('');
 
 	function load() {
-		fetch('/api/departments')
+		authFetch('/api/departments')
 			.then(r => r.json())
 			.then(d => setDepartments(Array.isArray(d?.departments) ? d.departments : []))
 			.catch(() => setDepartments([]));
@@ -14,7 +15,7 @@ export default function Departments() {
 
 	function submit(e) {
 		e.preventDefault();
-		fetch('/api/departments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+		authFetch('/api/departments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
 			.then(r => r.json()).then(() => { setName(''); load(); });
 	}
 
