@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import Database from 'better-sqlite3';
 import dayjs from 'dayjs';
+import { generateRandomPassword, generateSalt, hashPassword } from './services/auth.js';
 
 const DATA_DIR = path.join(process.cwd(), 'backend', 'data');
 const DB_PATH = path.join(DATA_DIR, 'ewaste.db');
@@ -233,16 +235,40 @@ export function initializeDatabase() {
 		insertCat.run('hazardous', 'Hazardous', 'high');
 	}
 
-	// Seed facility settings defaults (if empty)
-	const settingsCount = db.prepare('SELECT COUNT(*) as c FROM settings').get().c;
-	if (settingsCount === 0) {
-		const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
-		set.run('facility_name', '');
-		set.run('facility_address', '');
-		set.run('facility_authorization_no', '');
-		set.run('facility_contact_name', '');
-		set.run('facility_contact_phone', '');
-	}
+			// Seed facility settings defaults (if empty)
+		const settingsCount = db.prepare('SELECT COUNT(*) as c FROM settings').get().c;
+		if (settingsCount === 0) {
+			const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+			set.run('facility_name', '');
+			set.run('facility_address', '');
+			set.run('facility_authorization_no', '');
+			set.run('facility_contact_name', '');
+			set.run('facility_contact_phone', '');
+		}
+
+		// Ensure admin credentials and token secret
+		const hasHash = db.prepare("SELECT value FROM settings WHERE key='admin_password_hash'").get();
+		if (!hasHash) {
+			const { generateRandomPassword, generateSalt, hashPassword } = await import('./services/auth.js');
+			const set = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)');
+			const password = generateRandomPassword(12);
+			const salt = generateSalt(16);
+			const hash = hashPassword(password, salt);
+			set.run('admin_username', 'admin');
+			set.run('admin_password_salt', salt);
+			set.run('admin_password_hash', hash);
+			console.log('\n====================================================');
+			console.log(' Initial admin credentials');
+			console.log('   username: admin');
+			console.log(`   password: ${password}`);
+			console.log('   (Change it in Settings > Change Admin Password)');
+			console.log('====================================================\n');
+		}
+		const tokenSecret = db.prepare("SELECT value FROM settings WHERE key='auth_token_secret'").get();
+		if (!tokenSecret) {
+			const secret = Buffer.from(crypto.randomBytes(32)).toString('hex');
+			try { db.prepare('INSERT INTO settings (key, value) VALUES (?, ?)').run('auth_token_secret', secret); } catch {}
+		}
 }
 
 export function nowIso() {
