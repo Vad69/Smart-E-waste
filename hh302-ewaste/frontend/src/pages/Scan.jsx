@@ -20,11 +20,20 @@ export default function Scan() {
 	const scannerRef = useRef(null);
 
 	useEffect(() => {
+		let mounted = true;
 		try {
+			// Warn if running on an insecure origin (camera won't work)
+			if (!window.isSecureContext && !['localhost', '127.0.0.1', '::1'].includes(window.location.hostname)) {
+				setError('Camera requires HTTPS or localhost. You can still upload an image.');
+			}
 			if (!scannerRef.current) {
 				scannerRef.current = new Html5QrcodeScanner('qr-reader', {
 					fps: 10,
 					qrbox: 250,
+					rememberLastUsedCamera: true,
+					showTorchButtonIfSupported: true,
+					showZoomSliderIfSupported: true,
+					useBarCodeDetectorIfSupported: true,
 					supportedScanTypes: [
 						Html5QrcodeScanType.SCAN_TYPE_CAMERA,
 						Html5QrcodeScanType.SCAN_TYPE_FILE
@@ -33,9 +42,13 @@ export default function Scan() {
 				scannerRef.current.render(onScanSuccess, onScanError);
 			}
 		} catch (e) {
-			setError('Failed to initialize scanner');
+			if (mounted) setError(`Failed to initialize scanner${e?.message ? `: ${e.message}` : ''}`);
 		}
-		return () => { scannerRef.current?.clear?.().catch?.(() => {}); };
+		return () => {
+			const instance = scannerRef.current;
+			scannerRef.current = null;
+			instance?.clear?.().catch?.(() => {});
+		};
 	}, []);
 
 	function onScanSuccess(text) {
